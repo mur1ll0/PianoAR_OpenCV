@@ -14,10 +14,19 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/OpenCVForUnity/Examples/Advanced/HandPoseEstimationExample/HandPoseEstimationExample.unity
     guid: 208ac987d76a61e48b551f8d55a2cfd5
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Vuforia+OpenCV.unity
     guid: f209414e97436014e8a716c1c078a9aa
   - enabled: 0
     path: Assets/VuforiaWithOpenCVForUnityExample/PostRenderToMatExample.unity
     guid: f964998aaad66724a938bf7d19306e8e
+  - enabled: 1
+    path: Assets/Scenes/PhoneCamera.unity
+    guid: 372a3944afc56db4491dc6d86cedfd29
+  - enabled: 0
+    path: Assets/Scenes/Test.unity
+    guid: 2f6c5b31d6b94f84ba7e92576883f86f
+  - enabled: 0
+    path: Assets/Scenes/VufoCV1.unity
+    guid: 629007ca2e59b8541a56ed892ee356aa
   m_configObjects: {}
