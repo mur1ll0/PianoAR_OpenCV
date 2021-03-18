@@ -198,42 +198,50 @@ public class PhoneCamera : MonoBehaviour
         Imgproc.threshold(gray, keysROI, 0, 0, Imgproc.THRESH_BINARY);
 
         //Contorno da tecla preta para usar como match
-        /*Imgproc.cvtColor(BlackKeyMat, BlackKeyMat, Imgproc.COLOR_RGB2GRAY);
+        Mat BlackKeyMatGray = new Mat();
+        Imgproc.cvtColor(BlackKeyMat, BlackKeyMatGray, Imgproc.COLOR_RGB2GRAY);
         List<MatOfPoint> contourPreta = new List<MatOfPoint>();
-        Imgproc.findContours(BlackKeyMat, contourPreta, new Mat(), Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_TC89_L1);
-        MatOfPoint cPreta = contourPreta[0];*/
+        Imgproc.findContours(BlackKeyMatGray, contourPreta, new Mat(), Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_TC89_L1);
+        MatOfPoint cPreta = contourPreta[0];
+        OpenCVForUnity.CoreModule.Rect bRectBlackKey = Imgproc.boundingRect(cPreta);
+        //double aspect_ratio_blackKey = cPreta.height() / cPreta.width();
+        double aspect_ratio_blackKey = bRectBlackKey.height / bRectBlackKey.width;
+        Debug.Log("-----------------");
+        Debug.Log("BlackKey H:" + bRectBlackKey.height.ToString() + " W:" + bRectBlackKey.width.ToString());
+        Debug.Log("BlackKey AspectRatio:" + aspect_ratio_blackKey.ToString("0.###"));
+        Debug.Log("-----------------");
 
-        //Template Matching with Multiple Objects
-        Mat matches = new Mat();
-        /*Imgproc.threshold(gray, matches, 0, 0, Imgproc.THRESH_BINARY);
-        Imgproc.matchTemplate(brancas, BlackKeyMat, matches, Imgproc.TM_CCOEFF_NORMED);
-        Imgproc.threshold(matches, matches, 0.1, 1, Imgproc.THRESH_TOZERO);*/
-        Imgproc.threshold(cameraMat, matches, 0, 0, Imgproc.THRESH_BINARY);
-        Imgproc.matchTemplate(cameraMat, BlackKeyMat, matches, Imgproc.TM_CCOEFF_NORMED);
-        Imgproc.threshold(matches, matches, 0.1, 1, Imgproc.THRESH_TOZERO);
-        double threshold = 0.95;
-        double maxval;
-        Mat dst;
-        while (true)
-        {
-            Core.MinMaxLocResult maxr = Core.minMaxLoc(matches);
-            Point maxp = maxr.maxLoc;
-            maxval = maxr.maxVal;
-            Point maxop = new Point(maxp.x + BlackKeyMat.width(), maxp.y + BlackKeyMat.height());
-            dst = brancas.clone();
-            if (maxval >= threshold)
-            {
+        ////Template Matching with Multiple Objects
+        //Mat matches = new Mat();
+        //Imgproc.threshold(gray, matches, 0, 0, Imgproc.THRESH_BINARY);
+        //Imgproc.matchTemplate(brancas, BlackKeyMat, matches, Imgproc.TM_CCOEFF_NORMED);
+        //Imgproc.threshold(matches, matches, 0.1, 1, Imgproc.THRESH_TOZERO);
+        ////Imgproc.threshold(cameraMat, matches, 0, 0, Imgproc.THRESH_BINARY);
+        ////Imgproc.matchTemplate(cameraMat, BlackKeyMat, matches, Imgproc.TM_CCOEFF_NORMED);
+        ////Imgproc.threshold(matches, matches, 0.1, 1, Imgproc.THRESH_TOZERO);
+        //double threshold = 0.95;
+        //double maxval;
+        //Mat dst;
+        //while (true)
+        //{
+        //    Core.MinMaxLocResult maxr = Core.minMaxLoc(matches);
+        //    Point maxp = maxr.maxLoc;
+        //    maxval = maxr.maxVal;
+        //    Point maxop = new Point(maxp.x + BlackKeyMat.width(), maxp.y + BlackKeyMat.height());
+        //    dst = brancas.clone();
+        //    if (maxval >= threshold)
+        //    {
 
-                Imgproc.rectangle(cameraMat, maxp, new Point(maxp.x + BlackKeyMat.cols(),
-                        maxp.y + BlackKeyMat.rows()), new Scalar(0, 255, 0), 5);
-                Imgproc.rectangle(matches, maxp, new Point(maxp.x + BlackKeyMat.cols(),
-                        maxp.y + BlackKeyMat.rows()), new Scalar(0, 255, 0), -1);
-            }
-            else
-            {
-                break;
-            }
-        }
+        //        Imgproc.rectangle(cameraMat, maxp, new Point(maxp.x + BlackKeyMat.cols(),
+        //                maxp.y + BlackKeyMat.rows()), new Scalar(0, 255, 0), 5);
+        //        Imgproc.rectangle(matches, maxp, new Point(maxp.x + BlackKeyMat.cols(),
+        //                maxp.y + BlackKeyMat.rows()), new Scalar(0, 255, 0), -1);
+        //    }
+        //    else
+        //    {
+        //        break;
+        //    }
+        //}
 
 
         //Contornos
@@ -253,30 +261,32 @@ public class PhoneCamera : MonoBehaviour
                 continue;    
             }
 
-            /*/Se encontrar área que corresponde a mais de 8% do frame original, marcar como ROI
-            if (perc_area > 8 && perc_area < 40)
-            {
-                //Imgproc.rectangle(mask, bRect, new Scalar(0, 0, 255), 5, Imgproc.FILLED);
-                List<MatOfPoint> boxContours = new List<MatOfPoint>();
-                boxContours.Add(new MatOfPoint(c));
-                Imgproc.drawContours(mask, boxContours, 0, new Scalar(0, 0, 255), 2);
+            ////Se encontrar área que corresponde a mais de 8 % do frame original, marcar como ROI
+            //if (perc_area > 8 && perc_area < 40)
+            //{
+            //    Imgproc.rectangle(mask, bRect, new Scalar(0, 0, 255), 5, Imgproc.FILLED);
+            //    List<MatOfPoint> boxContours = new List<MatOfPoint>();
+            //    boxContours.Add(new MatOfPoint(c));
+            //    Imgproc.drawContours(mask, boxContours, 0, new Scalar(0, 0, 255), 2);
 
-                cameraMat.copyTo(keysROI, mask);
-                Debug.Log("Perc_area: " + perc_area.ToString());
-                break;
-            }
+            //    cameraMat.copyTo(keysROI, mask);
+            //    Debug.Log("Perc_area: " + perc_area.ToString());
+            //    break;
+            //}
             //Imgproc.rectangle(cameraMat, bRect, new Scalar(255, 0, 0), 5, Imgproc.LINE_AA);
-            */
-
-            /*/Mostrar contorno
-            List<MatOfPoint> boxContours = new List<MatOfPoint>();
-            boxContours.Add(new MatOfPoint(c));
-            Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(0, 0, 255), 2);
-            */
 
 
-            //Fazer match dos contornos para achar somente as teclas pretas
-            /*if (Imgproc.matchShapes(cPreta, c, Imgproc.CONTOURS_MATCH_I1, 0) > 10)
+            ////Mostrar contorno
+            //List<MatOfPoint> boxContours = new List<MatOfPoint>();
+            //boxContours.Add(new MatOfPoint(c));
+            //Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(0, 0, 255), 2);
+
+
+
+            /*/Fazer match dos contornos para achar somente as teclas pretas
+            double valor_match = Imgproc.matchShapes(cPreta, c, Imgproc.CONTOURS_MATCH_I1, 0);
+            
+            if (valor_match < 0.1)
             {
                 //Se tiver mais de 70% de chance de ser um tecla, pinta no keysROI
                 //Imgproc.rectangle(mask, bRect, new Scalar(0, 0, 255), 5, Imgproc.FILLED);
@@ -285,9 +295,30 @@ public class PhoneCamera : MonoBehaviour
                 //Imgproc.drawContours(mask, boxContours, 0, new Scalar(255), 2);
                 cameraMat.copyTo(keysROI, mask);
 
-                Imgproc.rectangle(mask, bRect, new Scalar(255), 5, Imgproc.LINE_AA);
-            }*/
+                Imgproc.putText(cameraMat, " " + valor_match.ToString("0.##"), new Point(bRect.x, bRect.y), Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
+                Imgproc.rectangle(cameraMat, bRect, new Scalar(0,0,255), 1, Imgproc.LINE_AA);
+            }
 
+            List<MatOfPoint> boxContours2 = new List<MatOfPoint>();
+            boxContours2.Add(cPreta);
+            Imgproc.drawContours(cameraMat, boxContours2, 0, new Scalar(255,0,0), 2);
+            */
+
+            //Match por aspect ratio
+            //double aspect_ratio_contour = c.height() / c.width();
+            double aspect_ratio_contour = bRect.height / bRect.width;
+            double perc_match_ratio = aspect_ratio_contour * 100 / aspect_ratio_blackKey;
+            if ((perc_match_ratio > 10) && (perc_match_ratio < 190)){
+                List<MatOfPoint> boxContours = new List<MatOfPoint>();
+                boxContours.Add(c);
+                Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 2);
+
+                Debug.Log("DETECTED: H:"+bRect.height.ToString()+" W:"+bRect.width.ToString()+" AR:"+aspect_ratio_contour.ToString("0.###")+" MatchAR:"+perc_match_ratio.ToString("0.#####"));
+            }
+            else
+            {
+                Debug.Log("NOT: H:" + bRect.height.ToString() + " W:" + bRect.width.ToString() + " AR:" + aspect_ratio_contour.ToString("0.###") + " MatchAR:" + perc_match_ratio.ToString("0.#####"));
+            }
         }
 
         //Imgproc.cvtColor(brancas, cameraMat, Imgproc.COLOR_GRAY2RGB);
