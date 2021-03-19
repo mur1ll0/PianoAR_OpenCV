@@ -260,7 +260,7 @@ public class PhoneCamera : MonoBehaviour
             //Eliminar ruidos nos contornos
             if (perc_area < 0.1)
             {
-                continue;    
+                //continue;    
             }
 
             ////Se encontrar área que corresponde a mais de 8 % do frame original, marcar como ROI
@@ -332,15 +332,23 @@ public class PhoneCamera : MonoBehaviour
             //    Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 2);
             //}
 
+            //Aproximação do contorno
+            MatOfPoint2f cPoly = new MatOfPoint2f();
+            MatOfPoint2f c2f = new MatOfPoint2f();
+            c.convertTo(c2f, CvType.CV_32FC2);
+            double epsilon = Imgproc.arcLength(c2f, true) * 0.02;
+            Imgproc.approxPolyDP(new MatOfPoint2f(c.toArray()), cPoly, 3, true);
+            //AR da aproximação
+            double aspect_ratio_approx = cPoly.height() / cPoly.width();
+
+            //if (aspect_ratio_approx > 1 && aspect_ratio_approx < 15)
             if (aspect_ratio_contour > 1 && aspect_ratio_contour < 15)
             {
-                MatOfPoint2f cPoly = new MatOfPoint2f();
-                Imgproc.approxPolyDP(new MatOfPoint2f(c.toArray()), cPoly, 3, true);
                 Point center = new Point();
                 float[] radius = new float[1];
                 Imgproc.minEnclosingCircle(cPoly, center, radius);
-                Imgproc.circle(cameraMat, center, (int)radius[0], new Scalar(0, 0, 255), 2);
-                Imgproc.putText(cameraMat, " "+ aspect_ratio_contour.ToString("0.##"), center, Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
+                //Imgproc.circle(cameraMat, center, (int)radius[0], new Scalar(0, 0, 255), 2);
+                Imgproc.putText(cameraMat, " "+ aspect_ratio_approx.ToString("0.##"), center, Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
 
                 MatOfPoint approxContour = new MatOfPoint();
                 cPoly.convertTo(approxContour, CvType.CV_32S);
