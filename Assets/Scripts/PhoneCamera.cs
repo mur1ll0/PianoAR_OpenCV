@@ -206,10 +206,10 @@ public class PhoneCamera : MonoBehaviour
         OpenCVForUnity.CoreModule.Rect bRectBlackKey = Imgproc.boundingRect(cPreta);
         //double aspect_ratio_blackKey = cPreta.height() / cPreta.width();
         double aspect_ratio_blackKey = bRectBlackKey.height / bRectBlackKey.width;
-        Debug.Log("-----------------");
-        Debug.Log("BlackKey H:" + bRectBlackKey.height.ToString() + " W:" + bRectBlackKey.width.ToString());
-        Debug.Log("BlackKey AspectRatio:" + aspect_ratio_blackKey.ToString("0.###"));
-        Debug.Log("-----------------");
+        //Debug.Log("-----------------");
+        //Debug.Log("BlackKey H:" + bRectBlackKey.height.ToString() + " W:" + bRectBlackKey.width.ToString());
+        //Debug.Log("BlackKey AspectRatio:" + aspect_ratio_blackKey.ToString("0.###"));
+        //Debug.Log("-----------------");
 
         ////Template Matching with Multiple Objects
         //Mat matches = new Mat();
@@ -243,6 +243,8 @@ public class PhoneCamera : MonoBehaviour
         //    }
         //}
 
+        //Contador de teclas detectadas
+        int detected_count = 0;
 
         //Contornos
         Mat mask = new Mat(brancas.rows(), brancas.cols(), CvType.CV_8U, Scalar.all(0));
@@ -304,22 +306,54 @@ public class PhoneCamera : MonoBehaviour
             Imgproc.drawContours(cameraMat, boxContours2, 0, new Scalar(255,0,0), 2);
             */
 
-            //Match por aspect ratio
-            //double aspect_ratio_contour = c.height() / c.width();
+            ////Match por aspect ratio
+            ////double aspect_ratio_contour = c.height() / c.width();
+            //double aspect_ratio_contour = bRect.height / bRect.width;
+            //double perc_match_ratio = aspect_ratio_contour * 100 / aspect_ratio_blackKey;
+            //if ((perc_match_ratio > 10) && (perc_match_ratio < 190)){
+            //    List<MatOfPoint> boxContours = new List<MatOfPoint>();
+            //    boxContours.Add(c);
+            //    Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 2);
+
+            //    Debug.Log("DETECTED: H:"+bRect.height.ToString()+" W:"+bRect.width.ToString()+" AR:"+aspect_ratio_contour.ToString("0.###")+" MatchAR:"+perc_match_ratio.ToString("0.#####"));
+            //}
+            //else
+            //{
+            //    Debug.Log("NOT: H:" + bRect.height.ToString() + " W:" + bRect.width.ToString() + " AR:" + aspect_ratio_contour.ToString("0.###") + " MatchAR:" + perc_match_ratio.ToString("0.#####"));
+            //}
+
+            //Desenhar apenas os contornos com Aspect Ratio entre 1 e 15
             double aspect_ratio_contour = bRect.height / bRect.width;
-            double perc_match_ratio = aspect_ratio_contour * 100 / aspect_ratio_blackKey;
-            if ((perc_match_ratio > 10) && (perc_match_ratio < 190)){
+
+            //if (aspect_ratio_contour>5 && aspect_ratio_contour < 10)
+            //{
+            //    List<MatOfPoint> boxContours = new List<MatOfPoint>();
+            //    boxContours.Add(c);
+            //    Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 2);
+            //}
+
+            if (aspect_ratio_contour > 1 && aspect_ratio_contour < 15)
+            {
+                MatOfPoint2f cPoly = new MatOfPoint2f();
+                Imgproc.approxPolyDP(new MatOfPoint2f(c.toArray()), cPoly, 3, true);
+                Point center = new Point();
+                float[] radius = new float[1];
+                Imgproc.minEnclosingCircle(cPoly, center, radius);
+                Imgproc.circle(cameraMat, center, (int)radius[0], new Scalar(0, 0, 255), 2);
+                Imgproc.putText(cameraMat, " "+ aspect_ratio_contour.ToString("0.##"), center, Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
+
+                MatOfPoint approxContour = new MatOfPoint();
+                cPoly.convertTo(approxContour, CvType.CV_32S);
                 List<MatOfPoint> boxContours = new List<MatOfPoint>();
-                boxContours.Add(c);
+                boxContours.Add(approxContour);
                 Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 2);
 
-                Debug.Log("DETECTED: H:"+bRect.height.ToString()+" W:"+bRect.width.ToString()+" AR:"+aspect_ratio_contour.ToString("0.###")+" MatchAR:"+perc_match_ratio.ToString("0.#####"));
+                detected_count++;
             }
-            else
-            {
-                Debug.Log("NOT: H:" + bRect.height.ToString() + " W:" + bRect.width.ToString() + " AR:" + aspect_ratio_contour.ToString("0.###") + " MatchAR:" + perc_match_ratio.ToString("0.#####"));
-            }
+
         }
+
+        Debug.Log("Teclas detectadas: "+detected_count.ToString());
 
         //Imgproc.cvtColor(brancas, cameraMat, Imgproc.COLOR_GRAY2RGB);
         //Imgproc.putText(cameraMat, "Tamanho do FRAME: " + cameraTexture.width + "x" + cameraTexture.height, new Point(5, cameraTexture.height - 5), Imgproc.FONT_HERSHEY_SIMPLEX, 2.0, new Scalar(255, 0, 0, 255));

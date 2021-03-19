@@ -115,7 +115,7 @@ MonoBehaviour:
   m_MinSize: {x: 683, y: 348}
   m_MaxSize: {x: 12008, y: 8048}
   vertical: 0
-  controlID: 5018
+  controlID: 1613
 --- !u!114 &6
 MonoBehaviour:
   m_ObjectHideFlags: 52
@@ -166,7 +166,7 @@ MonoBehaviour:
   m_MinSize: {x: 204, y: 348}
   m_MaxSize: {x: 4004, y: 8048}
   vertical: 1
-  controlID: 4974
+  controlID: 1562
 --- !u!114 &8
 MonoBehaviour:
   m_ObjectHideFlags: 52
@@ -545,19 +545,19 @@ MonoBehaviour:
     m_ShowAllHits: 0
     m_SearchArea: 1
     m_Folders:
-    - Assets/Resources
+    - Assets/Scripts
   m_ViewMode: 1
   m_StartGridSize: 64
   m_LastFolders:
-  - Assets/Resources
+  - Assets/Scripts
   m_LastFoldersGridSize: -1
   m_LastProjectPath: C:\Users\Administrator\Documents\Unity Projects\PianoAR
   m_LockTracker:
     m_IsLocked: 0
   m_FolderTreeState:
     scrollPos: {x: 0, y: 0}
-    m_SelectedIDs: a0310000
-    m_LastClickedID: 12704
+    m_SelectedIDs: d2340000
+    m_LastClickedID: 13522
     m_ExpandedIDs: 00000000862f000012310000e0310000e431000000320000da320000643300006e3300007a33000034340000e2340000c435000070380000cc39000000ca9a3b
     m_RenameOverlay:
       m_UserAcceptedRename: 0
