@@ -12,6 +12,7 @@ public class PhoneCamera : MonoBehaviour
 	private bool camAvailable;
 	private WebCamTexture cameraTexture;
 	private Texture defaultBackground;
+    private float avgFrameRate;
 
     Mat cameraMat;
     Mat BlackKeyMat;
@@ -23,12 +24,15 @@ public class PhoneCamera : MonoBehaviour
 	public AspectRatioFitter fit;
 	public bool frontFacing;
     public Texture BlackKeyContour;
-    public double areaExcludeValue;
 
     // Use this for initialization
     void Start()
 	{
-		defaultBackground = background.texture;
+        // Make the game run as fast as possible
+        Application.targetFrameRate = 300;
+        QualitySettings.vSyncCount = 0;
+
+        defaultBackground = background.texture;
 		WebCamDevice[] devices = WebCamTexture.devices;
 
 		if (devices.Length == 0)
@@ -158,15 +162,15 @@ public class PhoneCamera : MonoBehaviour
 		background.rectTransform.localEulerAngles = new Vector3(0, 0, orient);
 
 
-        //Teclado
-        if (Input.GetKeyDown(KeyCode.KeypadPlus))
-        {
-            areaExcludeValue += 0.01;
-        }
-        else if (Input.GetKeyDown(KeyCode.KeypadMinus))
-        {
-            areaExcludeValue -= 0.01;
-        }
+        ////Teclado
+        //if (Input.GetKeyDown(KeyCode.KeypadPlus))
+        //{
+        //    areaExcludeValue += 0.01;
+        //}
+        //else if (Input.GetKeyDown(KeyCode.KeypadMinus))
+        //{
+        //    areaExcludeValue -= 0.01;
+        //}
 
         //---------------------------------------------------
         //Ler frame da câmera e converter para MAT do OpenCV
@@ -191,6 +195,7 @@ public class PhoneCamera : MonoBehaviour
         Imgproc.erode(th, th, kernel, new Point(), 1);
         //Imgproc.dilate(brancas, brancas, kernel, new Point(), 1);
 
+
         //--------------------------------
         // DECLARAÇÕES
         //--------------------------------
@@ -199,24 +204,16 @@ public class PhoneCamera : MonoBehaviour
         Imgproc.threshold(gray, keysROI, 0, 0, Imgproc.THRESH_BINARY);
         //Contador de contornos detectados
         int detectedCount = 0;
-        //Lista de contornos detectados
-        List<MatOfPoint> detectedContours = new List<MatOfPoint>();
-        List<MatOfPoint2f> detectedApprox = new List<MatOfPoint2f>();
-        List<OpenCVForUnity.CoreModule.Rect> detectedRect = new List<OpenCVForUnity.CoreModule.Rect>();
         //Limites da área detectada
         int xMax = 0;
         int xMin = cameraMat.width();
         int yMax = 0;
         int yMin = cameraMat.height();
-        //Soma dos X e Y, para dividir depois por detected_count e achar a média do x e y
-        double xMaxSum = 0;
-        double xMinSum = 0;
-        double yMaxSum = 0;
-        double yMinSum = 0;
         //Vertices usados para retângulo rotacionado
         Point[] vertices = new Point[4];
         //Lista de contornos usada para drawContour
         List<MatOfPoint> boxContours = new List<MatOfPoint>();
+
 
         //Contornos
         //Mat mask = new Mat(brancas.rows(), brancas.cols(), CvType.CV_8U, Scalar.all(0));
@@ -256,8 +253,7 @@ public class PhoneCamera : MonoBehaviour
 
             //Eliminar áreas muito pequenas (ruídos) nos contornos
             double perc_area = (cArea * 100 / frame_area);
-            //if (perc_area < 0.05)
-            if (perc_area < areaExcludeValue)
+            if (perc_area < 0.05)
             {
                 continue;    
             }
@@ -267,27 +263,13 @@ public class PhoneCamera : MonoBehaviour
             // Selecionar contornos úteis
             //---------------------------
 
-            //Aspect Ratio do retângulo máximo (H/W)
-            double rAR = bRect.height / bRect.width;
             //Aspect Ratio do retângulo rotacionado (H/W)
             double rrAR = rRect.size.height / rRect.size.width;
             if ( Mathf.Abs((float)rRect.angle) > 45) rrAR = rRect.size.width / rRect.size.height;
 
             //Selecionar contornos com Aspect Ratio do Retângulo Rotacionado entre 3 e 12
             if (rrAR > 3 && rrAR < 12)
-            //if (cAR > 1 && cAR < 15)
             {
-                //Salvar contornos
-                detectedContours.Add(c);
-                detectedApprox.Add(cPoly);
-                detectedRect.Add(bRect);
-
-                //Somar x e y
-                xMinSum += bRect.x;
-                xMaxSum += bRect.x + bRect.width;
-                yMinSum += bRect.y;
-                yMaxSum += bRect.y + bRect.height;
-
                 //Calcular máximos e mínimos
                 if (bRect.x < xMin) xMin = bRect.x;
                 if (bRect.x + bRect.width > xMax) xMax = bRect.x + bRect.width;
@@ -325,7 +307,7 @@ public class PhoneCamera : MonoBehaviour
             //Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 1);
 
             //Imprimir AspectRatio
-            Imgproc.putText(cameraMat, " " + rrAR.ToString("0.##"), cCenter, Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
+            //Imgproc.putText(cameraMat, " " + rrAR.ToString("0.##"), cCenter, Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
 
         }
 
@@ -334,23 +316,25 @@ public class PhoneCamera : MonoBehaviour
         //-------------------------------
         // Definir área das teclas pretas
         //-------------------------------
-        //Percorrer os contornos selecionados e definir limites da área
-        foreach (OpenCVForUnity.CoreModule.Rect dRect in detectedRect)
-        {
-            //Média de X e Y
-            double xMinMedia = xMinSum / detectedCount;
-            double xMaxMedia = xMaxSum / detectedCount;
-            double yMinMedia = yMinSum / detectedCount;
-            double yMaxMedia = yMaxSum / detectedCount;
+        //Desenhar área das teclas pretas
+        Point[] areaPoints = new Point[4];
+        areaPoints[0] = new Point(xMin, yMin);
+        areaPoints[1] = new Point(xMin, yMax);
+        areaPoints[3] = new Point(xMax, yMin);
+        areaPoints[2] = new Point(xMax, yMax);
+        MatOfPoint keyArea = new MatOfPoint(areaPoints);
+        boxContours.Clear();
+        boxContours.Add(keyArea);
+        Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(0, 0, 255), 2);
 
-            //Descartar contornos cujo x/y seja 10% maior ou menor do que a média
-            if (true)
-            {
 
-            }
-        }
+        //-------------------------------
+        // FRAMERATE
+        //-------------------------------
+        avgFrameRate = Time.frameCount / Time.time;
 
-        Imgproc.putText(cameraMat, " " + areaExcludeValue.ToString("0.##"), new Point(150, 15), Imgproc.FONT_HERSHEY_SIMPLEX, 1, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
+
+        Imgproc.putText(cameraMat, " " + avgFrameRate.ToString("0.##"), new Point(150, 15), Imgproc.FONT_HERSHEY_SIMPLEX, 1, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
 
         //Imgproc.cvtColor(th, cameraMat, Imgproc.COLOR_GRAY2RGB);
         //Imgproc.putText(cameraMat, "Tamanho do FRAME: " + cameraTexture.width + "x" + cameraTexture.height, new Point(5, cameraTexture.height - 5), Imgproc.FONT_HERSHEY_SIMPLEX, 2.0, new Scalar(255, 0, 0, 255));
