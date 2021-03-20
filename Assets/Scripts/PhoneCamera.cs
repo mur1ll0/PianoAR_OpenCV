@@ -23,6 +23,7 @@ public class PhoneCamera : MonoBehaviour
 	public AspectRatioFitter fit;
 	public bool frontFacing;
     public Texture BlackKeyContour;
+    public double areaExcludeValue;
 
     // Use this for initialization
     void Start()
@@ -157,14 +158,21 @@ public class PhoneCamera : MonoBehaviour
 		background.rectTransform.localEulerAngles = new Vector3(0, 0, orient);
 
 
+        //Teclado
+        if (Input.GetKeyDown(KeyCode.KeypadPlus))
+        {
+            areaExcludeValue += 0.01;
+        }
+        else if (Input.GetKeyDown(KeyCode.KeypadMinus))
+        {
+            areaExcludeValue -= 0.01;
+        }
+
         //---------------------------------------------------
         //Ler frame da câmera e converter para MAT do OpenCV
         //---------------------------------------------------
-        //outputTexture.SetPixels(cameraTexture.GetPixels());
         outputTexture.SetPixels32(cameraTexture.GetPixels32());
         outputTexture.Apply();
-        //UnityEngine.Rect rect = new UnityEngine.Rect(0, 0, cameraTexture.width, cameraTexture.height);
-        //outputTexture.ReadPixels(rect, 0, 0, true);
         Utils.texture2DToMat(outputTexture, cameraMat, false);
 
         //Converter em escala de cinza
@@ -175,195 +183,176 @@ public class PhoneCamera : MonoBehaviour
         double frame_area = Screen.height * Screen.width;
 
         //Threshold binário
-        Mat brancas = new Mat();
+        Mat th = new Mat();
         Mat kernel = new Mat(5, 5, CvType.CV_8U, new Scalar(255));
         Mat blur = new Mat();
         Imgproc.GaussianBlur(gray, blur, new Size(9, 9), 3);
-        Imgproc.threshold(blur, brancas, 80, 255, Imgproc.THRESH_BINARY_INV);
-        Imgproc.erode(brancas, brancas, kernel, new Point(), 1);
+        Imgproc.threshold(blur, th, 80, 255, Imgproc.THRESH_BINARY_INV);
+        Imgproc.erode(th, th, kernel, new Point(), 1);
         //Imgproc.dilate(brancas, brancas, kernel, new Point(), 1);
 
-
-        // Primeira parte: Encontrar ROI das teclas, separando do resto do piano/teclado
-        Mat img_sobelx = new Mat(Screen.height, Screen.width, CvType.CV_8U);
-        Imgproc.Sobel(brancas, img_sobelx, CvType.CV_8U, 1, 0, 21);
-        Mat img_sobely = new Mat(Screen.height, Screen.width, CvType.CV_8U);
-        Imgproc.Sobel(brancas, img_sobely, CvType.CV_8U, 0, 1, 21);
-        Mat bordas = new Mat();
-        Core.add(img_sobelx, img_sobely, bordas);
-
-
+        //--------------------------------
+        // DECLARAÇÕES
+        //--------------------------------
         //Declarar variavel que será o ROI da área das teclas (Mat todo preto)
         Mat keysROI = new Mat(Screen.height, Screen.width, CvType.CV_8UC4, Scalar.all(0));
         Imgproc.threshold(gray, keysROI, 0, 0, Imgproc.THRESH_BINARY);
-
-        //Contorno da tecla preta para usar como match
-        Mat BlackKeyMatGray = new Mat();
-        Imgproc.cvtColor(BlackKeyMat, BlackKeyMatGray, Imgproc.COLOR_RGB2GRAY);
-        List<MatOfPoint> contourPreta = new List<MatOfPoint>();
-        Imgproc.findContours(BlackKeyMatGray, contourPreta, new Mat(), Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_TC89_L1);
-        MatOfPoint cPreta = contourPreta[0];
-        OpenCVForUnity.CoreModule.Rect bRectBlackKey = Imgproc.boundingRect(cPreta);
-        //double aspect_ratio_blackKey = cPreta.height() / cPreta.width();
-        double aspect_ratio_blackKey = bRectBlackKey.height / bRectBlackKey.width;
-        //Debug.Log("-----------------");
-        //Debug.Log("BlackKey H:" + bRectBlackKey.height.ToString() + " W:" + bRectBlackKey.width.ToString());
-        //Debug.Log("BlackKey AspectRatio:" + aspect_ratio_blackKey.ToString("0.###"));
-        //Debug.Log("-----------------");
-
-        ////Template Matching with Multiple Objects
-        //Mat matches = new Mat();
-        //Imgproc.threshold(gray, matches, 0, 0, Imgproc.THRESH_BINARY);
-        //Imgproc.matchTemplate(brancas, BlackKeyMat, matches, Imgproc.TM_CCOEFF_NORMED);
-        //Imgproc.threshold(matches, matches, 0.1, 1, Imgproc.THRESH_TOZERO);
-        ////Imgproc.threshold(cameraMat, matches, 0, 0, Imgproc.THRESH_BINARY);
-        ////Imgproc.matchTemplate(cameraMat, BlackKeyMat, matches, Imgproc.TM_CCOEFF_NORMED);
-        ////Imgproc.threshold(matches, matches, 0.1, 1, Imgproc.THRESH_TOZERO);
-        //double threshold = 0.95;
-        //double maxval;
-        //Mat dst;
-        //while (true)
-        //{
-        //    Core.MinMaxLocResult maxr = Core.minMaxLoc(matches);
-        //    Point maxp = maxr.maxLoc;
-        //    maxval = maxr.maxVal;
-        //    Point maxop = new Point(maxp.x + BlackKeyMat.width(), maxp.y + BlackKeyMat.height());
-        //    dst = brancas.clone();
-        //    if (maxval >= threshold)
-        //    {
-
-        //        Imgproc.rectangle(cameraMat, maxp, new Point(maxp.x + BlackKeyMat.cols(),
-        //                maxp.y + BlackKeyMat.rows()), new Scalar(0, 255, 0), 5);
-        //        Imgproc.rectangle(matches, maxp, new Point(maxp.x + BlackKeyMat.cols(),
-        //                maxp.y + BlackKeyMat.rows()), new Scalar(0, 255, 0), -1);
-        //    }
-        //    else
-        //    {
-        //        break;
-        //    }
-        //}
-
-        //Contador de teclas detectadas
-        int detected_count = 0;
+        //Contador de contornos detectados
+        int detectedCount = 0;
+        //Lista de contornos detectados
+        List<MatOfPoint> detectedContours = new List<MatOfPoint>();
+        List<MatOfPoint2f> detectedApprox = new List<MatOfPoint2f>();
+        List<OpenCVForUnity.CoreModule.Rect> detectedRect = new List<OpenCVForUnity.CoreModule.Rect>();
+        //Limites da área detectada
+        int xMax = 0;
+        int xMin = cameraMat.width();
+        int yMax = 0;
+        int yMin = cameraMat.height();
+        //Soma dos X e Y, para dividir depois por detected_count e achar a média do x e y
+        double xMaxSum = 0;
+        double xMinSum = 0;
+        double yMaxSum = 0;
+        double yMinSum = 0;
+        //Vertices usados para retângulo rotacionado
+        Point[] vertices = new Point[4];
+        //Lista de contornos usada para drawContour
+        List<MatOfPoint> boxContours = new List<MatOfPoint>();
 
         //Contornos
-        Mat mask = new Mat(brancas.rows(), brancas.cols(), CvType.CV_8U, Scalar.all(0));
+        //Mat mask = new Mat(brancas.rows(), brancas.cols(), CvType.CV_8U, Scalar.all(0));
         List<MatOfPoint> contours = new List<MatOfPoint>();
-        Imgproc.findContours(brancas, contours, new Mat(), Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_TC89_L1);
+        Imgproc.findContours(th, contours, new Mat(), Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_TC89_L1);
         foreach (MatOfPoint c in contours)
         {
-            double area = Imgproc.contourArea(c);
-            OpenCVForUnity.CoreModule.Rect bRect = Imgproc.boundingRect(c);
-
-            double perc_area = (area * 100 / frame_area);
-
-            //Eliminar ruidos nos contornos
-            if (perc_area < 0.1)
-            {
-                //continue;    
-            }
-
-            ////Se encontrar área que corresponde a mais de 8 % do frame original, marcar como ROI
-            //if (perc_area > 8 && perc_area < 40)
-            //{
-            //    Imgproc.rectangle(mask, bRect, new Scalar(0, 0, 255), 5, Imgproc.FILLED);
-            //    List<MatOfPoint> boxContours = new List<MatOfPoint>();
-            //    boxContours.Add(new MatOfPoint(c));
-            //    Imgproc.drawContours(mask, boxContours, 0, new Scalar(0, 0, 255), 2);
-
-            //    cameraMat.copyTo(keysROI, mask);
-            //    Debug.Log("Perc_area: " + perc_area.ToString());
-            //    break;
-            //}
-            //Imgproc.rectangle(cameraMat, bRect, new Scalar(255, 0, 0), 5, Imgproc.LINE_AA);
-
-
-            ////Mostrar contorno
-            //List<MatOfPoint> boxContours = new List<MatOfPoint>();
-            //boxContours.Add(new MatOfPoint(c));
-            //Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(0, 0, 255), 2);
-
-
-
-            /*/Fazer match dos contornos para achar somente as teclas pretas
-            double valor_match = Imgproc.matchShapes(cPreta, c, Imgproc.CONTOURS_MATCH_I1, 0);
-            
-            if (valor_match < 0.1)
-            {
-                //Se tiver mais de 70% de chance de ser um tecla, pinta no keysROI
-                //Imgproc.rectangle(mask, bRect, new Scalar(0, 0, 255), 5, Imgproc.FILLED);
-                List<MatOfPoint> boxContours = new List<MatOfPoint>();
-                boxContours.Add(new MatOfPoint(c));
-                //Imgproc.drawContours(mask, boxContours, 0, new Scalar(255), 2);
-                cameraMat.copyTo(keysROI, mask);
-
-                Imgproc.putText(cameraMat, " " + valor_match.ToString("0.##"), new Point(bRect.x, bRect.y), Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
-                Imgproc.rectangle(cameraMat, bRect, new Scalar(0,0,255), 1, Imgproc.LINE_AA);
-            }
-
-            List<MatOfPoint> boxContours2 = new List<MatOfPoint>();
-            boxContours2.Add(cPreta);
-            Imgproc.drawContours(cameraMat, boxContours2, 0, new Scalar(255,0,0), 2);
-            */
-
-            ////Match por aspect ratio
-            ////double aspect_ratio_contour = c.height() / c.width();
-            //double aspect_ratio_contour = bRect.height / bRect.width;
-            //double perc_match_ratio = aspect_ratio_contour * 100 / aspect_ratio_blackKey;
-            //if ((perc_match_ratio > 10) && (perc_match_ratio < 190)){
-            //    List<MatOfPoint> boxContours = new List<MatOfPoint>();
-            //    boxContours.Add(c);
-            //    Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 2);
-
-            //    Debug.Log("DETECTED: H:"+bRect.height.ToString()+" W:"+bRect.width.ToString()+" AR:"+aspect_ratio_contour.ToString("0.###")+" MatchAR:"+perc_match_ratio.ToString("0.#####"));
-            //}
-            //else
-            //{
-            //    Debug.Log("NOT: H:" + bRect.height.ToString() + " W:" + bRect.width.ToString() + " AR:" + aspect_ratio_contour.ToString("0.###") + " MatchAR:" + perc_match_ratio.ToString("0.#####"));
-            //}
-
-            //Desenhar apenas os contornos com Aspect Ratio entre 1 e 15
-            double aspect_ratio_contour = bRect.height / bRect.width;
-
-            //if (aspect_ratio_contour>5 && aspect_ratio_contour < 10)
-            //{
-            //    List<MatOfPoint> boxContours = new List<MatOfPoint>();
-            //    boxContours.Add(c);
-            //    Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 2);
-            //}
-
-            //Aproximação do contorno
-            MatOfPoint2f cPoly = new MatOfPoint2f();
+            //Contorno convertido em MatOfPoint2f
             MatOfPoint2f c2f = new MatOfPoint2f();
             c.convertTo(c2f, CvType.CV_32FC2);
-            double epsilon = Imgproc.arcLength(c2f, true) * 0.02;
-            Imgproc.approxPolyDP(new MatOfPoint2f(c.toArray()), cPoly, 3, true);
-            //AR da aproximação
-            double aspect_ratio_approx = cPoly.height() / cPoly.width();
 
-            //if (aspect_ratio_approx > 1 && aspect_ratio_approx < 15)
-            if (aspect_ratio_contour > 1 && aspect_ratio_contour < 15)
+            //----------------------
+            // Métricas do contorno
+            //----------------------
+            //Área
+            double cArea = Imgproc.contourArea(c);
+            //Perímetro
+            double cPerimeter = Imgproc.arcLength(c2f, true);
+            //Aspect Ratio (H/W)
+            double cAR = c.height() / c.width();
+
+            //-------------------------
+            // Aproximações do contorno
+            //-------------------------
+            //Retângulo máximo
+            OpenCVForUnity.CoreModule.Rect bRect = Imgproc.boundingRect(c);
+            //Retângulo rotacionado
+            RotatedRect rRect = Imgproc.minAreaRect(c2f);
+            //Círculo
+            Point cCenter = new Point();
+            float[] cRadius = new float[1];
+            Imgproc.minEnclosingCircle(c2f, cCenter, cRadius);
+            //Aproximação ApproxPolyDP
+            MatOfPoint2f cPoly = new MatOfPoint2f();
+            Imgproc.approxPolyDP(c2f, cPoly, 3, true);
+
+
+            //Eliminar áreas muito pequenas (ruídos) nos contornos
+            double perc_area = (cArea * 100 / frame_area);
+            //if (perc_area < 0.05)
+            if (perc_area < areaExcludeValue)
             {
-                Point center = new Point();
-                float[] radius = new float[1];
-                Imgproc.minEnclosingCircle(cPoly, center, radius);
-                //Imgproc.circle(cameraMat, center, (int)radius[0], new Scalar(0, 0, 255), 2);
-                Imgproc.putText(cameraMat, " "+ aspect_ratio_approx.ToString("0.##"), center, Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
-
-                MatOfPoint approxContour = new MatOfPoint();
-                cPoly.convertTo(approxContour, CvType.CV_32S);
-                List<MatOfPoint> boxContours = new List<MatOfPoint>();
-                boxContours.Add(approxContour);
-                Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 2);
-
-                detected_count++;
+                continue;    
             }
+
+
+            //---------------------------
+            // Selecionar contornos úteis
+            //---------------------------
+
+            //Aspect Ratio do retângulo máximo (H/W)
+            double rAR = bRect.height / bRect.width;
+            //Aspect Ratio do retângulo rotacionado (H/W)
+            double rrAR = rRect.size.height / rRect.size.width;
+            if ( Mathf.Abs((float)rRect.angle) > 45) rrAR = rRect.size.width / rRect.size.height;
+
+            //Selecionar contornos com Aspect Ratio do Retângulo Rotacionado entre 3 e 12
+            if (rrAR > 3 && rrAR < 12)
+            //if (cAR > 1 && cAR < 15)
+            {
+                //Salvar contornos
+                detectedContours.Add(c);
+                detectedApprox.Add(cPoly);
+                detectedRect.Add(bRect);
+
+                //Somar x e y
+                xMinSum += bRect.x;
+                xMaxSum += bRect.x + bRect.width;
+                yMinSum += bRect.y;
+                yMaxSum += bRect.y + bRect.height;
+
+                //Calcular máximos e mínimos
+                if (bRect.x < xMin) xMin = bRect.x;
+                if (bRect.x + bRect.width > xMax) xMax = bRect.x + bRect.width;
+                if (bRect.y < yMin) yMin = bRect.y;
+                if (bRect.y + bRect.height > yMax) yMax = bRect.y + bRect.height;
+
+                //Incrementar contador de selecionados/detectados
+                detectedCount++;
+
+                //Desenhar aproximação ApproxPolyDP
+                //MatOfPoint approxContour = new MatOfPoint();
+                //cPoly.convertTo(approxContour, CvType.CV_32S);
+                //List<MatOfPoint> boxContours = new List<MatOfPoint>();
+                //boxContours.Add(approxContour);
+                //Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 2);
+
+                //Desenhar Retângulo rotacionado
+                rRect.points(vertices);
+                boxContours.Clear();
+                boxContours.Add(new MatOfPoint(vertices));
+                Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 1);
+            }
+
+
+            //Desenhar circulo
+            //Imgproc.circle(cameraMat, cCenter, (int)cRadius[0], new Scalar(0, 0, 255), 2);
+
+            //Desenhar retângulo máximo
+            //Imgproc.rectangle(cameraMat, bRect, new Scalar(0, 0, 255), 1, Imgproc.LINE_AA);
+
+            //Desenhar Retângulo rotacionado
+            //rRect.points(vertices);
+            //boxContours.Clear();
+            //boxContours.Add(new MatOfPoint(vertices));
+            //Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 1);
+
+            //Imprimir AspectRatio
+            Imgproc.putText(cameraMat, " " + rrAR.ToString("0.##"), cCenter, Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
 
         }
 
-        Debug.Log("Teclas detectadas: "+detected_count.ToString());
+        Debug.Log("Teclas detectadas: "+detectedCount.ToString());
 
-        //Imgproc.cvtColor(brancas, cameraMat, Imgproc.COLOR_GRAY2RGB);
+        //-------------------------------
+        // Definir área das teclas pretas
+        //-------------------------------
+        //Percorrer os contornos selecionados e definir limites da área
+        foreach (OpenCVForUnity.CoreModule.Rect dRect in detectedRect)
+        {
+            //Média de X e Y
+            double xMinMedia = xMinSum / detectedCount;
+            double xMaxMedia = xMaxSum / detectedCount;
+            double yMinMedia = yMinSum / detectedCount;
+            double yMaxMedia = yMaxSum / detectedCount;
+
+            //Descartar contornos cujo x/y seja 10% maior ou menor do que a média
+            if (true)
+            {
+
+            }
+        }
+
+        Imgproc.putText(cameraMat, " " + areaExcludeValue.ToString("0.##"), new Point(150, 15), Imgproc.FONT_HERSHEY_SIMPLEX, 1, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
+
+        //Imgproc.cvtColor(th, cameraMat, Imgproc.COLOR_GRAY2RGB);
         //Imgproc.putText(cameraMat, "Tamanho do FRAME: " + cameraTexture.width + "x" + cameraTexture.height, new Point(5, cameraTexture.height - 5), Imgproc.FONT_HERSHEY_SIMPLEX, 2.0, new Scalar(255, 0, 0, 255));
 
         //-------------------------------------------------------

@@ -280,6 +280,7 @@ MonoBehaviour:
   fit: {fileID: 1782666234}
   frontFacing: 0
   BlackKeyContour: {fileID: 2800000, guid: a4f19990c082af849876d94bb65eb514, type: 3}
+  areaExcludeValue: 0.05
 --- !u!1 &1500529910
 GameObject:
   m_ObjectHideFlags: 0
