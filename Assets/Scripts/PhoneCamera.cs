@@ -15,15 +15,13 @@ public class PhoneCamera : MonoBehaviour
     private float avgFrameRate;
 
     Mat cameraMat;
-    Mat BlackKeyMat;
     Texture2D outputTexture;
-    Texture2D BlackKeyTexture;
+    Texture2D maskROITex2D;
     Color32[] colors;
 
     public RawImage background;
 	public AspectRatioFitter fit;
 	public bool frontFacing;
-    public Texture BlackKeyContour;
 
     // Use this for initialization
     void Start()
@@ -65,12 +63,6 @@ public class PhoneCamera : MonoBehaviour
         cameraMat = new Mat(cameraTexture.height, cameraTexture.width, CvType.CV_8UC4);
         outputTexture = new Texture2D(cameraTexture.width, cameraTexture.height, TextureFormat.ARGB32, false);
         background.texture = outputTexture; // Set the texture
-
-        //Setar tecla preta texture2D pra mat
-        BlackKeyTexture = new Texture2D(BlackKeyContour.width,BlackKeyContour.height);
-        BlackKeyTexture = BlackKeyContour as Texture2D;
-        BlackKeyMat = new Mat(BlackKeyTexture.height, BlackKeyTexture.width, CvType.CV_8UC4);
-        Utils.texture2DToMat(BlackKeyTexture, BlackKeyMat, false);
 
         camAvailable = true; // Set the camAvailable for future purposes.
 	}
@@ -199,9 +191,6 @@ public class PhoneCamera : MonoBehaviour
         //--------------------------------
         // DECLARAÇÕES
         //--------------------------------
-        //Declarar variavel que será o ROI da área das teclas (Mat todo preto)
-        Mat keysROI = new Mat(Screen.height, Screen.width, CvType.CV_8UC4, Scalar.all(0));
-        Imgproc.threshold(gray, keysROI, 0, 0, Imgproc.THRESH_BINARY);
         //Contador de contornos detectados
         int detectedCount = 0;
         //Limites da área detectada
@@ -215,10 +204,26 @@ public class PhoneCamera : MonoBehaviour
         List<MatOfPoint> boxContours = new List<MatOfPoint>();
 
 
+        //--------------------------------
+        // ROI
+        //--------------------------------
+        //Definir tamanho do ROI: roi.height = Screen.Width/6; (Teeclas:84x14, então AspectRatio=84/14 = 6)
+        double roiSize = cameraMat.width() / 6;
+        //Retângulos do ROI
+        OpenCVForUnity.CoreModule.Rect roiExcludeRectDown = new OpenCVForUnity.CoreModule.Rect(0, 0, cameraMat.width(), (int)((cameraMat.height() / 2) - roiSize / 2));
+        OpenCVForUnity.CoreModule.Rect roiExcludeRectUp = new OpenCVForUnity.CoreModule.Rect(0, (int)((cameraMat.height() / 2) + roiSize / 2), cameraMat.width(), cameraMat.height());
+        OpenCVForUnity.CoreModule.Rect roiRect = new OpenCVForUnity.CoreModule.Rect(0, (int)((cameraMat.height() / 2) - roiSize / 2), cameraMat.width(), (int)(roiSize));
+        //Criar máscara toda preta
+        Mat mask = new Mat(cameraMat.rows(), cameraMat.cols(), CvType.CV_8U, Scalar.all(0));
+        //Desenhar roiRect em branco na máscara
+        Imgproc.rectangle(mask, roiRect, Scalar.all(255), Imgproc.FILLED);
+        //Aplicar filtro com máscara
+        Mat imgROI = new Mat();
+        th.copyTo(imgROI, mask);
+
         //Contornos
-        //Mat mask = new Mat(brancas.rows(), brancas.cols(), CvType.CV_8U, Scalar.all(0));
-        List<MatOfPoint> contours = new List<MatOfPoint>();
-        Imgproc.findContours(th, contours, new Mat(), Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_TC89_L1);
+        List <MatOfPoint> contours = new List<MatOfPoint>();
+        Imgproc.findContours(imgROI, contours, new Mat(), Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_TC89_L1);
         foreach (MatOfPoint c in contours)
         {
             //Contorno convertido em MatOfPoint2f
@@ -329,14 +334,27 @@ public class PhoneCamera : MonoBehaviour
 
 
         //-------------------------------
+        // Desenhar ROI
+        //-------------------------------
+        //Imgproc.line(cameraMat, new Point(0, (cameraMat.height() / 2) - roiSize / 2), new Point(cameraMat.width(), (cameraMat.height() / 2) - roiSize / 2), new Scalar(255,255,255));
+        //Imgproc.line(cameraMat, new Point(0, (cameraMat.height() / 2) + roiSize / 2), new Point(cameraMat.width(), (cameraMat.height() / 2) + roiSize / 2), new Scalar(255, 255, 255));
+        //Criar Mat com os retângulos
+        Mat roiExcluded = new Mat(cameraMat.rows(), cameraMat.cols(), CvType.CV_8UC4, Scalar.all(0));
+        Imgproc.rectangle(roiExcluded, roiExcludeRectUp, Scalar.all(255), Imgproc.FILLED);
+        Imgproc.rectangle(roiExcluded, roiExcludeRectDown, Scalar.all(255), Imgproc.FILLED);
+        //Aplicar transparência
+        Core.addWeighted(roiExcluded, 0.50, cameraMat, 1.0, 1.0, cameraMat);
+
+        //-------------------------------
         // FRAMERATE
         //-------------------------------
         avgFrameRate = Time.frameCount / Time.time;
 
 
-        Imgproc.putText(cameraMat, " " + avgFrameRate.ToString("0.##"), new Point(150, 15), Imgproc.FONT_HERSHEY_SIMPLEX, 1, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
+        Imgproc.putText(cameraMat, " " + (avgFrameRate).ToString("0.##"), new Point(150, 15), Imgproc.FONT_HERSHEY_SIMPLEX, 1, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
 
-        //Imgproc.cvtColor(th, cameraMat, Imgproc.COLOR_GRAY2RGB);
+        //Imgproc.resize(imgROI, imgROI, cameraMat.size());
+        //Imgproc.cvtColor(imgROI, cameraMat, Imgproc.COLOR_GRAY2RGB);
         //Imgproc.putText(cameraMat, "Tamanho do FRAME: " + cameraTexture.width + "x" + cameraTexture.height, new Point(5, cameraTexture.height - 5), Imgproc.FONT_HERSHEY_SIMPLEX, 2.0, new Scalar(255, 0, 0, 255));
 
         //-------------------------------------------------------
