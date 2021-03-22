@@ -5,6 +5,7 @@ using UnityEngine.UI;
 using OpenCVForUnity.CoreModule;
 using OpenCVForUnity.ImgprocModule;
 using OpenCVForUnity.UnityUtils;
+using System.Linq;
 
 public class PhoneCamera : MonoBehaviour
 {
@@ -193,11 +194,15 @@ public class PhoneCamera : MonoBehaviour
         //--------------------------------
         //Contador de contornos detectados
         int detectedCount = 0;
-        //Limites da área detectada
-        int xMax = 0;
-        int xMin = cameraMat.width();
-        int yMax = 0;
-        int yMin = cameraMat.height();
+        //Pontos máximos e mínimos da área detectada
+        // D __ C
+        //  |  |
+        //  |__|
+        // A    B
+        Point A = new Point(cameraMat.width(), cameraMat.height());
+        Point B = new Point(0, cameraMat.height());
+        Point C = new Point(0, 0);
+        Point D = new Point(cameraMat.width(), 0);
         //Vertices usados para retângulo rotacionado
         Point[] vertices = new Point[4];
         //Lista de contornos usada para drawContour
@@ -275,15 +280,6 @@ public class PhoneCamera : MonoBehaviour
             //Selecionar contornos com Aspect Ratio do Retângulo Rotacionado entre 3 e 12
             if (rrAR > 3 && rrAR < 12)
             {
-                //Calcular máximos e mínimos
-                if (bRect.x < xMin) xMin = bRect.x;
-                if (bRect.x + bRect.width > xMax) xMax = bRect.x + bRect.width;
-                if (bRect.y < yMin) yMin = bRect.y;
-                if (bRect.y + bRect.height > yMax) yMax = bRect.y + bRect.height;
-
-                //Incrementar contador de selecionados/detectados
-                detectedCount++;
-
                 //Desenhar aproximação ApproxPolyDP
                 //MatOfPoint approxContour = new MatOfPoint();
                 //cPoly.convertTo(approxContour, CvType.CV_32S);
@@ -295,7 +291,39 @@ public class PhoneCamera : MonoBehaviour
                 rRect.points(vertices);
                 boxContours.Clear();
                 boxContours.Add(new MatOfPoint(vertices));
-                Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 1);
+                Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 3);
+
+                //Setar pontos A,B,C e D
+                // D __ C
+                //  |  |
+                //  |__|
+                // A    B
+                //Ordenar pontos primeiro por Y, depois por X usando System.Linq
+                List<Point> rrPoints = new List<Point>();
+                rrPoints = vertices.OrderBy(p => p.y).ThenBy(p => p.x).ToList<Point>();
+                //Ordem:
+                //rrPoints[0] = A
+                //rrPoints[1] = B
+                //rrPoints[2] = D
+                //rrPoints[3] = C
+
+                //Debug.Log("-ORDENACAO-");
+                //Debug.Log(rrPoints[0].ToString());
+                //Debug.Log(rrPoints[1].ToString());
+                //Debug.Log(rrPoints[2].ToString());
+                //Debug.Log(rrPoints[3].ToString());
+
+                if (rrPoints[0].x < A.x) A.x = rrPoints[0].x;
+                if (rrPoints[0].y < A.y) A.y = rrPoints[0].y;
+                if (rrPoints[1].x > B.x) B.x = rrPoints[1].x;
+                if (rrPoints[1].y < B.y) B.y = rrPoints[1].y;
+                if (rrPoints[3].x > C.x) C.x = rrPoints[3].x;
+                if (rrPoints[3].y > C.y) C.y = rrPoints[3].y;
+                if (rrPoints[2].x < D.x) D.x = rrPoints[2].x;
+                if (rrPoints[2].y > D.y) D.y = rrPoints[2].y;
+
+                //Incrementar contador de selecionados/detectados
+                detectedCount++;
             }
 
 
@@ -322,14 +350,14 @@ public class PhoneCamera : MonoBehaviour
         // Definir área das teclas pretas
         //-------------------------------
         //Desenhar área das teclas pretas
-        Point[] areaPoints = new Point[4];
-        areaPoints[0] = new Point(xMin, yMin);
-        areaPoints[1] = new Point(xMin, yMax);
-        areaPoints[3] = new Point(xMax, yMin);
-        areaPoints[2] = new Point(xMax, yMax);
-        MatOfPoint keyArea = new MatOfPoint(areaPoints);
+        Point[] blackKeysPoints = new Point[4];
+        blackKeysPoints[0] = A;
+        blackKeysPoints[1] = D;
+        blackKeysPoints[2] = C;
+        blackKeysPoints[3] = B;
+        MatOfPoint blackKeysArea = new MatOfPoint(blackKeysPoints);
         boxContours.Clear();
-        boxContours.Add(keyArea);
+        boxContours.Add(blackKeysArea);
         Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(0, 0, 255), 2);
 
 

@@ -64,6 +64,10 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assets\LINQtoGameObject\Examples\SampleSceneScript.cs" />
+    <Compile Include="Assets\LINQtoGameObject\Scripts\GameObjectExtensions.Enumerable.cs" />
+    <Compile Include="Assets\LINQtoGameObject\Scripts\GameObjectExtensions.Operate.cs" />
+    <Compile Include="Assets\LINQtoGameObject\Scripts\GameObjectExtensions.Traverse.cs" />
     <Compile Include="Assets\Scripts\deteccao.cs" />
     <Compile Include="Assets\Scripts\PhoneCamera.cs" />
     <Compile Include="Assets\Scripts\Scanner.cs" />
@@ -77,6 +81,7 @@
     <None Include="Assets\Vuforia\Shaders\VideoBackground.shader" />
     <None Include="Assets\_www.unityassetcollection.com.txt" />
     <None Include="Assets\Vuforia\Shaders\OutlineOpaque.shader" />
+    <None Include="Assets\LINQtoGameObject\README.txt" />
     <None Include="Assets\Vuforia\Shaders\DepthMask.shader" />
     <None Include="Assets\Vuforia\Databases\Emulator\VuforiaEmulator.xml" />
     <None Include="Assets\Vuforia\Shaders\ClippingMask.shader" />
