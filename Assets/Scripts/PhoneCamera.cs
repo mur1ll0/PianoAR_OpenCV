@@ -6,6 +6,7 @@ using OpenCVForUnity.CoreModule;
 using OpenCVForUnity.ImgprocModule;
 using OpenCVForUnity.UnityUtils;
 using System.Linq;
+using TMPro;
 
 public class PhoneCamera : MonoBehaviour
 {
@@ -23,6 +24,7 @@ public class PhoneCamera : MonoBehaviour
     public RawImage background;
 	public AspectRatioFitter fit;
 	public bool frontFacing;
+    public TextMeshProUGUI log;
 
     // Use this for initialization
     void Start()
@@ -39,7 +41,7 @@ public class PhoneCamera : MonoBehaviour
 
         Debug.Log("Number of web cams connected: " + devices.Length);
 
-        /*for (int i = 0; i < devices.Length; i++)
+       /* for (int i = 0; i < devices.Length; i++)
 		{
 			var curr = devices[i];
 
@@ -57,6 +59,7 @@ public class PhoneCamera : MonoBehaviour
             return;
 
         Debug.Log("Device connected: " + cameraTexture.deviceName);
+        log.text = "Device connected: " + cameraTexture.deviceName;
 
         cameraTexture.Play(); // Start the camera
         background.texture = cameraTexture; // Set the texture
