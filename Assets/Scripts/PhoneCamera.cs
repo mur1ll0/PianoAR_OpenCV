@@ -33,6 +33,9 @@ public class PhoneCamera : MonoBehaviour
     // Use this for initialization
     void Start()
 	{
+        //Estado inicial da detcção
+        detected = false;
+
         // Make the game run as fast as possible
         Application.targetFrameRate = 300;
         QualitySettings.vSyncCount = 0;
@@ -73,9 +76,6 @@ public class PhoneCamera : MonoBehaviour
         background.texture = outputTexture; // Set the texture
 
         camAvailable = true; // Set the camAvailable for future purposes.
-
-        //Estado inicial da detcção
-        detected = false;
 	}
 
     Mat TadaptiveMeanBin(Mat gray, int scale, int block_size, int sub_mean, Size morph_kernel, int morph_type, bool negative)
@@ -175,16 +175,16 @@ public class PhoneCamera : MonoBehaviour
         //    areaExcludeValue -= 0.01;
         //}
 
-        //Enquanto não tiver detectado
-        while (!detected)
-        {
+        //---------------------------------------------------
+        //Ler frame da câmera e converter para MAT do OpenCV
+        //---------------------------------------------------
+        outputTexture.SetPixels32(cameraTexture.GetPixels32());
+        outputTexture.Apply();
+        Utils.texture2DToMat(outputTexture, cameraMat, false);
 
-            //---------------------------------------------------
-            //Ler frame da câmera e converter para MAT do OpenCV
-            //---------------------------------------------------
-            outputTexture.SetPixels32(cameraTexture.GetPixels32());
-            outputTexture.Apply();
-            Utils.texture2DToMat(outputTexture, cameraMat, false);
+        //Enquanto não tiver detectado
+        if (detected == false)
+        {
 
             //Converter em escala de cinza
             Mat gray = new Mat(Screen.height, Screen.width, CvType.CV_8UC4);
@@ -365,6 +365,7 @@ public class PhoneCamera : MonoBehaviour
             if ( Mathf.FloorToInt(qtdKeys * 5 / 12) == detectedCount)
             {
                 detected = true;
+                Debug.Log("Quantidade Pretas: " + (Mathf.FloorToInt(qtdKeys * 5 / 12)).ToString());
             }
 
             //-------------------------------
@@ -394,24 +395,24 @@ public class PhoneCamera : MonoBehaviour
             //Aplicar transparência
             Core.addWeighted(roiExcluded, 0.50, cameraMat, 1.0, 1.0, cameraMat);
 
-            //-------------------------------
-            // FRAMERATE
-            //-------------------------------
-            avgFrameRate = Time.frameCount / Time.time;
-
-
-            Imgproc.putText(cameraMat, " " + (avgFrameRate).ToString("0.##"), new Point(150, 15), Imgproc.FONT_HERSHEY_SIMPLEX, 1, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
-
-            //Imgproc.resize(imgROI, imgROI, cameraMat.size());
-            //Imgproc.cvtColor(imgROI, cameraMat, Imgproc.COLOR_GRAY2RGB);
-            //Imgproc.putText(cameraMat, "Tamanho do FRAME: " + cameraTexture.width + "x" + cameraTexture.height, new Point(5, cameraTexture.height - 5), Imgproc.FONT_HERSHEY_SIMPLEX, 2.0, new Scalar(255, 0, 0, 255));
-
-            //-------------------------------------------------------
-            //Converter MAT do OpenCV para textura mapeada na câmera
-            //------------------------------------------------------
-            Utils.matToTexture2D(cameraMat, outputTexture, false);
-
         }
+
+        //-------------------------------
+        // FRAMERATE
+        //-------------------------------
+        avgFrameRate = Time.frameCount / Time.time;
+
+
+        Imgproc.putText(cameraMat, " " + (avgFrameRate).ToString("0.##"), new Point(150, 15), Imgproc.FONT_HERSHEY_SIMPLEX, 1, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
+
+        //Imgproc.resize(imgROI, imgROI, cameraMat.size());
+        //Imgproc.cvtColor(imgROI, cameraMat, Imgproc.COLOR_GRAY2RGB);
+        //Imgproc.putText(cameraMat, "Tamanho do FRAME: " + cameraTexture.width + "x" + cameraTexture.height, new Point(5, cameraTexture.height - 5), Imgproc.FONT_HERSHEY_SIMPLEX, 2.0, new Scalar(255, 0, 0, 255));
+
+        //-------------------------------------------------------
+        //Converter MAT do OpenCV para textura mapeada na câmera
+        //------------------------------------------------------
+        Utils.matToTexture2D(cameraMat, outputTexture, false);
 
     }
 }
