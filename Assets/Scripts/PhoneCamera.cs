@@ -5,12 +5,14 @@ using UnityEngine.UI;
 using OpenCVForUnity.CoreModule;
 using OpenCVForUnity.ImgprocModule;
 using OpenCVForUnity.UnityUtils;
+using OpenCVForUnity.VideoModule;
 using System.Linq;
 using TMPro;
 
 public class PhoneCamera : MonoBehaviour
 {
 
+    //Variáveis de controle interno
 	private bool camAvailable;
 	private WebCamTexture cameraTexture;
 	private Texture defaultBackground;
@@ -21,11 +23,13 @@ public class PhoneCamera : MonoBehaviour
     Texture2D outputTexture;
     Texture2D maskROITex2D;
     Color32[] colors;
+    RotatedRect rectBlackKeysArea;
 
     public RawImage background;
 	public AspectRatioFitter fit;
 	public bool frontFacing;
     public TextMeshProUGUI log;
+    public GameObject plane;
 
     //Parametros
     public int qtdKeys;
@@ -66,7 +70,7 @@ public class PhoneCamera : MonoBehaviour
             return;
 
         Debug.Log("Device connected: " + cameraTexture.deviceName);
-        log.text = "Device connected: " + cameraTexture.deviceName;
+        //log.text = "Device connected: " + cameraTexture.deviceName;
 
         cameraTexture.Play(); // Start the camera
         background.texture = cameraTexture; // Set the texture
@@ -182,63 +186,62 @@ public class PhoneCamera : MonoBehaviour
         outputTexture.Apply();
         Utils.texture2DToMat(outputTexture, cameraMat, false);
 
+        //Converter em escala de cinza
+        Mat gray = new Mat(Screen.height, Screen.width, CvType.CV_8UC4);
+        Imgproc.cvtColor(cameraMat, gray, Imgproc.COLOR_RGB2GRAY);
+
+        //Calcular area do frame
+        double frame_area = Screen.height * Screen.width;
+
+        //Threshold binário
+        Mat th = new Mat();
+        Mat kernel = new Mat(5, 5, CvType.CV_8U, new Scalar(255));
+        Mat blur = new Mat();
+        Imgproc.GaussianBlur(gray, blur, new Size(9, 9), 3);
+        Imgproc.threshold(blur, th, 80, 255, Imgproc.THRESH_BINARY_INV);
+        Imgproc.erode(th, th, kernel, new Point(), 1);
+        //Imgproc.dilate(brancas, brancas, kernel, new Point(), 1);
+
+        //--------------------------------
+        // DECLARAÇÕES
+        //--------------------------------
+        //Contador de contornos detectados
+        int detectedCount = 0;
+        //Pontos máximos e mínimos da área detectada
+        // D __ C
+        //  |  |
+        //  |__|
+        // A    B
+        Point A = new Point(cameraMat.width(), cameraMat.height());
+        Point B = new Point(0, cameraMat.height());
+        Point C = new Point(0, 0);
+        Point D = new Point(cameraMat.width(), 0);
+        //Vertices usados para retângulo rotacionado
+        Point[] vertices = new Point[4];
+        //Lista de contornos usada para drawContour
+        List<MatOfPoint> boxContours = new List<MatOfPoint>();
+
+
+        //--------------------------------
+        // ROI
+        //--------------------------------
+        //Definir tamanho do ROI: roi.height = Screen.Width/6; (Teeclas:84x14, então AspectRatio=84/14 = 6)
+        double roiSize = cameraMat.width() / 6;
+        //Retângulos do ROI
+        OpenCVForUnity.CoreModule.Rect roiExcludeRectDown = new OpenCVForUnity.CoreModule.Rect(0, 0, cameraMat.width(), (int)((cameraMat.height() / 2) - roiSize / 2));
+        OpenCVForUnity.CoreModule.Rect roiExcludeRectUp = new OpenCVForUnity.CoreModule.Rect(0, (int)((cameraMat.height() / 2) + roiSize / 2), cameraMat.width(), cameraMat.height());
+        OpenCVForUnity.CoreModule.Rect roiRect = new OpenCVForUnity.CoreModule.Rect(0, (int)((cameraMat.height() / 2) - roiSize / 2), cameraMat.width(), (int)(roiSize));
+        //Criar máscara toda preta
+        Mat mask = new Mat(cameraMat.rows(), cameraMat.cols(), CvType.CV_8U, Scalar.all(0));
+        //Desenhar roiRect em branco na máscara
+        Imgproc.rectangle(mask, roiRect, Scalar.all(255), Imgproc.FILLED);
+        //Aplicar filtro com máscara
+        Mat imgROI = new Mat();
+        th.copyTo(imgROI, mask);
+
         //Enquanto não tiver detectado
         if (detected == false)
         {
-
-            //Converter em escala de cinza
-            Mat gray = new Mat(Screen.height, Screen.width, CvType.CV_8UC4);
-            Imgproc.cvtColor(cameraMat, gray, Imgproc.COLOR_RGB2GRAY);
-
-            //Calcular area do frame
-            double frame_area = Screen.height * Screen.width;
-
-            //Threshold binário
-            Mat th = new Mat();
-            Mat kernel = new Mat(5, 5, CvType.CV_8U, new Scalar(255));
-            Mat blur = new Mat();
-            Imgproc.GaussianBlur(gray, blur, new Size(9, 9), 3);
-            Imgproc.threshold(blur, th, 80, 255, Imgproc.THRESH_BINARY_INV);
-            Imgproc.erode(th, th, kernel, new Point(), 1);
-            //Imgproc.dilate(brancas, brancas, kernel, new Point(), 1);
-
-
-            //--------------------------------
-            // DECLARAÇÕES
-            //--------------------------------
-            //Contador de contornos detectados
-            int detectedCount = 0;
-            //Pontos máximos e mínimos da área detectada
-            // D __ C
-            //  |  |
-            //  |__|
-            // A    B
-            Point A = new Point(cameraMat.width(), cameraMat.height());
-            Point B = new Point(0, cameraMat.height());
-            Point C = new Point(0, 0);
-            Point D = new Point(cameraMat.width(), 0);
-            //Vertices usados para retângulo rotacionado
-            Point[] vertices = new Point[4];
-            //Lista de contornos usada para drawContour
-            List<MatOfPoint> boxContours = new List<MatOfPoint>();
-
-
-            //--------------------------------
-            // ROI
-            //--------------------------------
-            //Definir tamanho do ROI: roi.height = Screen.Width/6; (Teeclas:84x14, então AspectRatio=84/14 = 6)
-            double roiSize = cameraMat.width() / 6;
-            //Retângulos do ROI
-            OpenCVForUnity.CoreModule.Rect roiExcludeRectDown = new OpenCVForUnity.CoreModule.Rect(0, 0, cameraMat.width(), (int)((cameraMat.height() / 2) - roiSize / 2));
-            OpenCVForUnity.CoreModule.Rect roiExcludeRectUp = new OpenCVForUnity.CoreModule.Rect(0, (int)((cameraMat.height() / 2) + roiSize / 2), cameraMat.width(), cameraMat.height());
-            OpenCVForUnity.CoreModule.Rect roiRect = new OpenCVForUnity.CoreModule.Rect(0, (int)((cameraMat.height() / 2) - roiSize / 2), cameraMat.width(), (int)(roiSize));
-            //Criar máscara toda preta
-            Mat mask = new Mat(cameraMat.rows(), cameraMat.cols(), CvType.CV_8U, Scalar.all(0));
-            //Desenhar roiRect em branco na máscara
-            Imgproc.rectangle(mask, roiRect, Scalar.all(255), Imgproc.FILLED);
-            //Aplicar filtro com máscara
-            Mat imgROI = new Mat();
-            th.copyTo(imgROI, mask);
 
             //Contornos
             List<MatOfPoint> contours = new List<MatOfPoint>();
@@ -381,6 +384,11 @@ public class PhoneCamera : MonoBehaviour
             boxContours.Clear();
             boxContours.Add(blackKeysArea);
             Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(0, 0, 255), 2);
+            //Contorno convertido em MatOfPoint2f
+            MatOfPoint2f blackKeysArea2f = new MatOfPoint2f();
+            blackKeysArea.convertTo(blackKeysArea2f, CvType.CV_32FC2);
+            //Atribuir retângulo rotacionado com a detecção
+            rectBlackKeysArea = Imgproc.minAreaRect(blackKeysArea2f);
 
 
             //-------------------------------
@@ -395,12 +403,78 @@ public class PhoneCamera : MonoBehaviour
             //Aplicar transparência
             Core.addWeighted(roiExcluded, 0.50, cameraMat, 1.0, 1.0, cameraMat);
 
+
+            //-------------------------------
+            // Posicionar Plane
+            //-------------------------------
+            
+
         }
+
+        //-------------------------------
+        // Tracking com CamShift
+        //-------------------------------
+        else
+        {
+            Mat hsv_roi = new Mat();
+            Mat maskCam = new Mat(); 
+            Mat roi;
+
+            // set up the ROI for tracking
+            roi = new Mat(cameraMat, rectBlackKeysArea.boundingRect());
+            Imgproc.cvtColor(roi, hsv_roi, Imgproc.COLOR_BGR2HSV);
+            Core.inRange(hsv_roi, new Scalar(0, 60, 32), new Scalar(180, 255, 255), maskCam);
+            MatOfFloat range = new MatOfFloat(0, 256);
+            Mat roi_hist = new Mat();
+            MatOfInt histSize = new MatOfInt(180);
+            MatOfInt channels = new MatOfInt(0);
+            List<Mat> listHsv_roi = new List<Mat>();
+            listHsv_roi.Add(hsv_roi);
+            Imgproc.calcHist(listHsv_roi, channels, maskCam, roi_hist, histSize, range);
+            Core.normalize(roi_hist, roi_hist, 0, 255, Core.NORM_MINMAX);
+
+            // Setup the termination criteria, either 10 iteration or move by atleast 1 pt
+            TermCriteria term_crit = new TermCriteria(TermCriteria.EPS | TermCriteria.COUNT, 10, 1);
+
+            Mat hsv = new Mat();
+            Mat dst = new Mat();
+            Imgproc.cvtColor(cameraMat, hsv, Imgproc.COLOR_BGR2HSV);
+            List<Mat> listHsv = new List<Mat>();
+            listHsv.Add(hsv);
+            Imgproc.calcBackProject(listHsv, channels, roi_hist, dst, range, 1);
+            // apply camshift to get the new location
+
+            //EDITED: Utilizei o imgROI no lugar do dst (calculado no calcBackProject), pois o imgROI contém a área de teclas em detecção já preparadas.
+            //PROBLEMA: o CamShift funciona pra movimentos do objeto na imagem, considerando a camera fixa. No nosso caso, a câmera deve se mover e o objeto sera fixo, então não serve.
+            RotatedRect rot_rect = Video.CamShift(imgROI, rectBlackKeysArea.boundingRect(), term_crit);
+            // Draw it on image
+            Point[] points = new Point[4];
+            rot_rect.points(points);
+            for (int i = 0; i < 4; i++)
+            {
+                Imgproc.line(cameraMat, points[i], points[(i + 1) % 4], new Scalar(255, 0, 0), 2);
+            }
+
+            ////Exibir resultado do calcBackProject
+            //Mat mIntermediateMat = new Mat();
+            //Imgproc.resize(dst, mIntermediateMat, cameraMat.size(), 0, 0, Imgproc.INTER_LINEAR);
+            //Imgproc.cvtColor(mIntermediateMat, cameraMat, Imgproc.COLOR_GRAY2BGRA);
+
+            //Desenhar Retângulo rotacionado
+            //Point[] rRectPoints = new Point[4];
+            //List<MatOfPoint> rRectPointList = new List<MatOfPoint>();
+            //rectBlackKeysArea.points(rRectPoints);
+            //rRectPointList.Clear();
+            //rRectPointList.Add(new MatOfPoint(rRectPoints));
+            //Imgproc.drawContours(cameraMat, rRectPointList, 0, new Scalar(255, 0, 0), 1);
+        }
+
 
         //-------------------------------
         // FRAMERATE
         //-------------------------------
         avgFrameRate = Time.frameCount / Time.time;
+        log.text = avgFrameRate.ToString() + "FPS";
 
 
         Imgproc.putText(cameraMat, " " + (avgFrameRate).ToString("0.##"), new Point(150, 15), Imgproc.FONT_HERSHEY_SIMPLEX, 1, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
