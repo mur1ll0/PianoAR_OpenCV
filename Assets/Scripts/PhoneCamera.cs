@@ -6,6 +6,7 @@ using OpenCVForUnity.CoreModule;
 using OpenCVForUnity.ImgprocModule;
 using OpenCVForUnity.UnityUtils;
 using OpenCVForUnity.VideoModule;
+using OpenCVForUnity.Features2dModule;
 using System.Linq;
 using TMPro;
 
@@ -24,6 +25,7 @@ public class PhoneCamera : MonoBehaviour
     Texture2D maskROITex2D;
     Color32[] colors;
     RotatedRect rectBlackKeysArea;
+    Mat featureImage;
 
     public RawImage background;
 	public AspectRatioFitter fit;
@@ -186,62 +188,62 @@ public class PhoneCamera : MonoBehaviour
         outputTexture.Apply();
         Utils.texture2DToMat(outputTexture, cameraMat, false);
 
-        //Converter em escala de cinza
-        Mat gray = new Mat(Screen.height, Screen.width, CvType.CV_8UC4);
-        Imgproc.cvtColor(cameraMat, gray, Imgproc.COLOR_RGB2GRAY);
-
-        //Calcular area do frame
-        double frame_area = Screen.height * Screen.width;
-
-        //Threshold binário
-        Mat th = new Mat();
-        Mat kernel = new Mat(5, 5, CvType.CV_8U, new Scalar(255));
-        Mat blur = new Mat();
-        Imgproc.GaussianBlur(gray, blur, new Size(9, 9), 3);
-        Imgproc.threshold(blur, th, 80, 255, Imgproc.THRESH_BINARY_INV);
-        Imgproc.erode(th, th, kernel, new Point(), 1);
-        //Imgproc.dilate(brancas, brancas, kernel, new Point(), 1);
-
-        //--------------------------------
-        // DECLARAÇÕES
-        //--------------------------------
-        //Contador de contornos detectados
-        int detectedCount = 0;
-        //Pontos máximos e mínimos da área detectada
-        // D __ C
-        //  |  |
-        //  |__|
-        // A    B
-        Point A = new Point(cameraMat.width(), cameraMat.height());
-        Point B = new Point(0, cameraMat.height());
-        Point C = new Point(0, 0);
-        Point D = new Point(cameraMat.width(), 0);
-        //Vertices usados para retângulo rotacionado
-        Point[] vertices = new Point[4];
-        //Lista de contornos usada para drawContour
-        List<MatOfPoint> boxContours = new List<MatOfPoint>();
-
-
-        //--------------------------------
-        // ROI
-        //--------------------------------
-        //Definir tamanho do ROI: roi.height = Screen.Width/6; (Teeclas:84x14, então AspectRatio=84/14 = 6)
-        double roiSize = cameraMat.width() / 6;
-        //Retângulos do ROI
-        OpenCVForUnity.CoreModule.Rect roiExcludeRectDown = new OpenCVForUnity.CoreModule.Rect(0, 0, cameraMat.width(), (int)((cameraMat.height() / 2) - roiSize / 2));
-        OpenCVForUnity.CoreModule.Rect roiExcludeRectUp = new OpenCVForUnity.CoreModule.Rect(0, (int)((cameraMat.height() / 2) + roiSize / 2), cameraMat.width(), cameraMat.height());
-        OpenCVForUnity.CoreModule.Rect roiRect = new OpenCVForUnity.CoreModule.Rect(0, (int)((cameraMat.height() / 2) - roiSize / 2), cameraMat.width(), (int)(roiSize));
-        //Criar máscara toda preta
-        Mat mask = new Mat(cameraMat.rows(), cameraMat.cols(), CvType.CV_8U, Scalar.all(0));
-        //Desenhar roiRect em branco na máscara
-        Imgproc.rectangle(mask, roiRect, Scalar.all(255), Imgproc.FILLED);
-        //Aplicar filtro com máscara
-        Mat imgROI = new Mat();
-        th.copyTo(imgROI, mask);
 
         //Enquanto não tiver detectado
         if (detected == false)
         {
+            //Converter em escala de cinza
+            Mat gray = new Mat(Screen.height, Screen.width, CvType.CV_8UC4);
+            Imgproc.cvtColor(cameraMat, gray, Imgproc.COLOR_RGB2GRAY);
+
+            //Calcular area do frame
+            double frame_area = Screen.height * Screen.width;
+
+            //Threshold binário
+            Mat th = new Mat();
+            Mat kernel = new Mat(5, 5, CvType.CV_8U, new Scalar(255));
+            Mat blur = new Mat();
+            Imgproc.GaussianBlur(gray, blur, new Size(9, 9), 3);
+            Imgproc.threshold(blur, th, 80, 255, Imgproc.THRESH_BINARY_INV);
+            Imgproc.erode(th, th, kernel, new Point(), 1);
+            //Imgproc.dilate(brancas, brancas, kernel, new Point(), 1);
+
+            //--------------------------------
+            // DECLARAÇÕES
+            //--------------------------------
+            //Contador de contornos detectados
+            int detectedCount = 0;
+            //Pontos máximos e mínimos da área detectada
+            // D __ C
+            //  |  |
+            //  |__|
+            // A    B
+            Point A = new Point(cameraMat.width(), cameraMat.height());
+            Point B = new Point(0, cameraMat.height());
+            Point C = new Point(0, 0);
+            Point D = new Point(cameraMat.width(), 0);
+            //Vertices usados para retângulo rotacionado
+            Point[] vertices = new Point[4];
+            //Lista de contornos usada para drawContour
+            List<MatOfPoint> boxContours = new List<MatOfPoint>();
+
+
+            //--------------------------------
+            // ROI
+            //--------------------------------
+            //Definir tamanho do ROI: roi.height = Screen.Width/6; (Teeclas:84x14, então AspectRatio=84/14 = 6)
+            double roiSize = cameraMat.width() / 6;
+            //Retângulos do ROI
+            OpenCVForUnity.CoreModule.Rect roiExcludeRectDown = new OpenCVForUnity.CoreModule.Rect(0, 0, cameraMat.width(), (int)((cameraMat.height() / 2) - roiSize / 2));
+            OpenCVForUnity.CoreModule.Rect roiExcludeRectUp = new OpenCVForUnity.CoreModule.Rect(0, (int)((cameraMat.height() / 2) + roiSize / 2), cameraMat.width(), cameraMat.height());
+            OpenCVForUnity.CoreModule.Rect roiRect = new OpenCVForUnity.CoreModule.Rect(0, (int)((cameraMat.height() / 2) - roiSize / 2), cameraMat.width(), (int)(roiSize));
+            //Criar máscara toda preta
+            Mat mask = new Mat(cameraMat.rows(), cameraMat.cols(), CvType.CV_8U, Scalar.all(0));
+            //Desenhar roiRect em branco na máscara
+            Imgproc.rectangle(mask, roiRect, Scalar.all(255), Imgproc.FILLED);
+            //Aplicar filtro com máscara
+            Mat imgROI = new Mat();
+            th.copyTo(imgROI, mask);
 
             //Contornos
             List<MatOfPoint> contours = new List<MatOfPoint>();
@@ -404,56 +406,43 @@ public class PhoneCamera : MonoBehaviour
             Core.addWeighted(roiExcluded, 0.50, cameraMat, 1.0, 1.0, cameraMat);
 
 
-            //-------------------------------
-            // Posicionar Plane
-            //-------------------------------
-            
+            //-------------------------------------------
+            // Definir features para detecção usando SIFT
+            //-------------------------------------------
+            //Salvar frame da área detectada
+            featureImage = cameraMat.submat(rectBlackKeysArea.boundingRect());
+
+            //Detectar features da featureImage que será usada como detecção
+            SIFT siftDetector = SIFT.create();
+            MatOfKeyPoint objectKeyPoints = new MatOfKeyPoint();
+            Mat objectDescriptors = new Mat();
+            siftDetector.detect(featureImage, objectKeyPoints);
+            siftDetector.compute(featureImage, objectKeyPoints, objectDescriptors);
+
 
         }
 
         //-------------------------------
-        // Tracking com CamShift
+        // Tracking com SURF
         //-------------------------------
         else
         {
-            Mat hsv_roi = new Mat();
-            Mat maskCam = new Mat(); 
-            Mat roi;
+            //Detectar features do frame
+            SIFT siftDetector = SIFT.create();
+            MatOfKeyPoint sceneKeyPoints = new MatOfKeyPoint();
+            MatOfKeyPoint sceneDescriptors = new MatOfKeyPoint();
+            siftDetector.detect(cameraMat, sceneKeyPoints);
+            siftDetector.compute(cameraMat, sceneKeyPoints, sceneDescriptors);
 
-            // set up the ROI for tracking
-            roi = new Mat(cameraMat, rectBlackKeysArea.boundingRect());
-            Imgproc.cvtColor(roi, hsv_roi, Imgproc.COLOR_BGR2HSV);
-            Core.inRange(hsv_roi, new Scalar(0, 60, 32), new Scalar(180, 255, 255), maskCam);
-            MatOfFloat range = new MatOfFloat(0, 256);
-            Mat roi_hist = new Mat();
-            MatOfInt histSize = new MatOfInt(180);
-            MatOfInt channels = new MatOfInt(0);
-            List<Mat> listHsv_roi = new List<Mat>();
-            listHsv_roi.Add(hsv_roi);
-            Imgproc.calcHist(listHsv_roi, channels, maskCam, roi_hist, histSize, range);
-            Core.normalize(roi_hist, roi_hist, 0, 255, Core.NORM_MINMAX);
+            Features2d.drawKeypoints(cameraMat, sceneKeyPoints, cameraMat, new Scalar(255,0,0), 0);
 
-            // Setup the termination criteria, either 10 iteration or move by atleast 1 pt
-            TermCriteria term_crit = new TermCriteria(TermCriteria.EPS | TermCriteria.COUNT, 10, 1);
-
-            Mat hsv = new Mat();
-            Mat dst = new Mat();
-            Imgproc.cvtColor(cameraMat, hsv, Imgproc.COLOR_BGR2HSV);
-            List<Mat> listHsv = new List<Mat>();
-            listHsv.Add(hsv);
-            Imgproc.calcBackProject(listHsv, channels, roi_hist, dst, range, 1);
-            // apply camshift to get the new location
-
-            //EDITED: Utilizei o imgROI no lugar do dst (calculado no calcBackProject), pois o imgROI contém a área de teclas em detecção já preparadas.
-            //PROBLEMA: o CamShift funciona pra movimentos do objeto na imagem, considerando a camera fixa. No nosso caso, a câmera deve se mover e o objeto sera fixo, então não serve.
-            RotatedRect rot_rect = Video.CamShift(imgROI, rectBlackKeysArea.boundingRect(), term_crit);
-            // Draw it on image
-            Point[] points = new Point[4];
-            rot_rect.points(points);
-            for (int i = 0; i < 4; i++)
-            {
-                Imgproc.line(cameraMat, points[i], points[(i + 1) % 4], new Scalar(255, 0, 0), 2);
-            }
+            //// Draw it on image
+            //Point[] points = new Point[4];
+            //rectBlackKeysArea.points(points);
+            //for (int i = 0; i < 4; i++)
+            //{
+            //    Imgproc.line(cameraMat, points[i], points[(i + 1) % 4], new Scalar(255, 0, 0), 2);
+            //}
 
             ////Exibir resultado do calcBackProject
             //Mat mIntermediateMat = new Mat();
