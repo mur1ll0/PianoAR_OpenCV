@@ -7,6 +7,7 @@ using OpenCVForUnity.ImgprocModule;
 using OpenCVForUnity.UnityUtils;
 using OpenCVForUnity.VideoModule;
 using OpenCVForUnity.Features2dModule;
+using OpenCVForUnity.ImgcodecsModule;
 using System.Linq;
 using TMPro;
 
@@ -26,6 +27,9 @@ public class PhoneCamera : MonoBehaviour
     Color32[] colors;
     RotatedRect rectBlackKeysArea;
     Mat featureImage;
+    MatOfKeyPoint objectKeyPoints;
+    Mat objectDescriptors;
+    ORB orb;
 
     public RawImage background;
 	public AspectRatioFitter fit;
@@ -82,7 +86,10 @@ public class PhoneCamera : MonoBehaviour
         background.texture = outputTexture; // Set the texture
 
         camAvailable = true; // Set the camAvailable for future purposes.
-	}
+
+        //Criar objeto de deteção de features ORB
+        orb = ORB.create(500);
+    }
 
     Mat TadaptiveMeanBin(Mat gray, int scale, int block_size, int sub_mean, Size morph_kernel, int morph_type, bool negative)
     {
@@ -310,7 +317,7 @@ public class PhoneCamera : MonoBehaviour
                     rRect.points(vertices);
                     boxContours.Clear();
                     boxContours.Add(new MatOfPoint(vertices));
-                    Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 3);
+                    //Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 3);
 
                     //Setar pontos A,B,C e D
                     // D __ C
@@ -376,7 +383,7 @@ public class PhoneCamera : MonoBehaviour
             //-------------------------------
             // Definir área das teclas pretas
             //-------------------------------
-            //Desenhar área das teclas pretas
+            //Contornar área das teclas pretas
             Point[] blackKeysPoints = new Point[4];
             blackKeysPoints[0] = A;
             blackKeysPoints[1] = D;
@@ -385,7 +392,7 @@ public class PhoneCamera : MonoBehaviour
             MatOfPoint blackKeysArea = new MatOfPoint(blackKeysPoints);
             boxContours.Clear();
             boxContours.Add(blackKeysArea);
-            Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(0, 0, 255), 2);
+            
             //Contorno convertido em MatOfPoint2f
             MatOfPoint2f blackKeysArea2f = new MatOfPoint2f();
             blackKeysArea.convertTo(blackKeysArea2f, CvType.CV_32FC2);
@@ -406,56 +413,56 @@ public class PhoneCamera : MonoBehaviour
             Core.addWeighted(roiExcluded, 0.50, cameraMat, 1.0, 1.0, cameraMat);
 
 
-            //-------------------------------------------
-            // Definir features para detecção usando SIFT
-            //-------------------------------------------
-            //Salvar frame da área detectada
-            featureImage = cameraMat.submat(rectBlackKeysArea.boundingRect());
+            //----------------------------------------------
+            // Salvar frame da área detectada e ORB features
+            //----------------------------------------------
+            if (detected == true)
+            {
+                //Salvar material usando retângulo como mascara
+                featureImage = cameraMat.submat(rectBlackKeysArea.boundingRect());
+                Imgcodecs.imwrite("featureImage.png", featureImage);
 
-            //Detectar features da featureImage que será usada como detecção
-            SIFT siftDetector = SIFT.create();
-            MatOfKeyPoint objectKeyPoints = new MatOfKeyPoint();
-            Mat objectDescriptors = new Mat();
-            siftDetector.detect(featureImage, objectKeyPoints);
-            siftDetector.compute(featureImage, objectKeyPoints, objectDescriptors);
+                //Detectar features com ORB
+                objectKeyPoints = new MatOfKeyPoint();
+                objectDescriptors = new Mat();
+                orb.detectAndCompute(featureImage, new Mat(), objectKeyPoints, objectDescriptors);
+            }
 
+            //Desenhar área das teclas pretas
+            Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(0, 0, 255), 2);
 
         }
 
         //-------------------------------
-        // Tracking com SURF
+        // Tracking com ORB
         //-------------------------------
         else
         {
+            //Ler imagem salva
+            featureImage = Imgcodecs.imread("featureImage.png");
+            //Detectar features com ORB
+            objectKeyPoints = new MatOfKeyPoint();
+            objectDescriptors = new Mat();
+            orb.detectAndCompute(featureImage, new Mat(), objectKeyPoints, objectDescriptors);
+
             //Detectar features do frame
-            SIFT siftDetector = SIFT.create();
-            MatOfKeyPoint sceneKeyPoints = new MatOfKeyPoint();
-            MatOfKeyPoint sceneDescriptors = new MatOfKeyPoint();
-            siftDetector.detect(cameraMat, sceneKeyPoints);
-            siftDetector.compute(cameraMat, sceneKeyPoints, sceneDescriptors);
+            MatOfKeyPoint frameKeyPoints = new MatOfKeyPoint();
+            Mat frameDescriptors = new Mat();
+            orb.detectAndCompute(cameraMat, new Mat(), frameKeyPoints, frameDescriptors);
+            //Features2d.drawKeypoints(cameraMat, frameKeyPoints, cameraMat, new Scalar(255, 0, 0), 0);
 
-            Features2d.drawKeypoints(cameraMat, sceneKeyPoints, cameraMat, new Scalar(255,0,0), 0);
+            //Match de features entre objeto detectado e frame
+            BFMatcher matcher = new BFMatcher();
+            //DescriptorMatcher matcher = DescriptorMatcher.create(DescriptorMatcher.BRUTEFORCE_HAMMINGLUT);
+            MatOfDMatch matchePoints = new MatOfDMatch();
+            matcher.match(frameDescriptors, objectDescriptors, matchePoints);
 
-            //// Draw it on image
-            //Point[] points = new Point[4];
-            //rectBlackKeysArea.points(points);
-            //for (int i = 0; i < 4; i++)
-            //{
-            //    Imgproc.line(cameraMat, points[i], points[(i + 1) % 4], new Scalar(255, 0, 0), 2);
-            //}
+            Mat dstMat = new Mat();
+            Features2d.drawMatches(featureImage, objectKeyPoints, cameraMat, frameKeyPoints, matchePoints, dstMat);
+            DMatch[] matchArray =  matchePoints.toArray();
+            //Tentar converter matches em pontos e imprimir contorno ou algo assim. ver o site do SIFT no Dummy, o cara faz isso
 
-            ////Exibir resultado do calcBackProject
-            //Mat mIntermediateMat = new Mat();
-            //Imgproc.resize(dst, mIntermediateMat, cameraMat.size(), 0, 0, Imgproc.INTER_LINEAR);
-            //Imgproc.cvtColor(mIntermediateMat, cameraMat, Imgproc.COLOR_GRAY2BGRA);
-
-            //Desenhar Retângulo rotacionado
-            //Point[] rRectPoints = new Point[4];
-            //List<MatOfPoint> rRectPointList = new List<MatOfPoint>();
-            //rectBlackKeysArea.points(rRectPoints);
-            //rRectPointList.Clear();
-            //rRectPointList.Add(new MatOfPoint(rRectPoints));
-            //Imgproc.drawContours(cameraMat, rRectPointList, 0, new Scalar(255, 0, 0), 1);
+            Imgproc.resize(dstMat, cameraMat, cameraMat.size());
         }
 
 
