@@ -21,7 +21,7 @@ MonoBehaviour:
     maxSimultaneousObjectTargets: 1
     useDelayedLoadingObjectTargets: 1
     version: 8.1.10
-    eulaAcceptedVersions: '{"Values":["8.5","8.6","7.1","7.2","7.5","8.0","8.1"]}'
+    eulaAcceptedVersions: '{"Values":["8.5","8.6","7.1","7.2","7.5","8.0","8.1","0.0","9.8"]}'
   digitalEyewear:
     cameraOffset: 0.06
     distortionRenderingLayer: 31

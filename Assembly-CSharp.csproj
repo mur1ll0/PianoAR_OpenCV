@@ -69,9 +69,9 @@
     <Compile Include="Assets\LINQtoGameObject\Scripts\GameObjectExtensions.Operate.cs" />
     <Compile Include="Assets\LINQtoGameObject\Scripts\GameObjectExtensions.Traverse.cs" />
     <Compile Include="Assets\Scripts\deteccao.cs" />
+    <Compile Include="Assets\Scripts\ImageToVideo.cs" />
     <Compile Include="Assets\Scripts\PhoneCamera.cs" />
     <Compile Include="Assets\Scripts\Scanner.cs" />
-    <Compile Include="Assets\Scripts\VufoCV1.cs" />
     <Compile Include="Assets\VuforiaWithOpenCVForUnityExample\CameraImageToMatExample.cs" />
     <Compile Include="Assets\VuforiaWithOpenCVForUnityExample\PostRenderToMatExample.cs" />
     <None Include="Assets\Vuforia\Shaders\ColoredLines.shader" />

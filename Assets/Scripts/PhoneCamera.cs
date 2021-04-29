@@ -26,6 +26,8 @@ public class PhoneCamera : MonoBehaviour
 	public AspectRatioFitter fit;
 	public bool frontFacing;
     public TextMeshProUGUI log;
+    public GameObject virtualPlane;
+    public Transform cameraTransform;
 
     //Parametros
     public int qtdKeys;
@@ -364,7 +366,7 @@ public class PhoneCamera : MonoBehaviour
             //A cada 12 teclas, 5 são pretas
             if ( Mathf.FloorToInt(qtdKeys * 5 / 12) == detectedCount)
             {
-                detected = true;
+                //detected = true;
                 Debug.Log("Quantidade Pretas: " + (Mathf.FloorToInt(qtdKeys * 5 / 12)).ToString());
             }
 
@@ -381,6 +383,15 @@ public class PhoneCamera : MonoBehaviour
             boxContours.Clear();
             boxContours.Add(blackKeysArea);
             Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(0, 0, 255), 2);
+
+            //Criar retangulo rotacionado
+            MatOfPoint2f rRectAreaPoints = new MatOfPoint2f(blackKeysPoints);
+            RotatedRect rRectArea = Imgproc.minAreaRect(rRectAreaPoints);
+
+            //Reposicionar VirtualPlane
+            //Vector3 relativePosition = cameraTransform.InverseTransformDirection(virtualPlane.transform.position - cameraTransform.position);
+            virtualPlane.transform.localPosition = new Vector3((float)rRectArea.center.x, (float)rRectArea.center.y, virtualPlane.transform.localPosition.z);
+
 
 
             //-------------------------------
