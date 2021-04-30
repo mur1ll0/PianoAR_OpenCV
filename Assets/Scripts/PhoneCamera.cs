@@ -7,7 +7,7 @@ using OpenCVForUnity.ImgprocModule;
 using OpenCVForUnity.UnityUtils;
 using System.Linq;
 using TMPro;
-using Tayx.Graphy;
+using OpenCVForUnity.VideoModule;
 
 public class PhoneCamera : MonoBehaviour
 {
@@ -16,6 +16,8 @@ public class PhoneCamera : MonoBehaviour
 	private WebCamTexture cameraTexture;
 	private Texture defaultBackground;
     private bool detected;
+    private RotatedRect rRectArea;
+    private Mat detectedMat;
 
     private float updateRateSeconds = 4.0F;
     private int frameCount = 0;
@@ -371,7 +373,7 @@ public class PhoneCamera : MonoBehaviour
             //A cada 12 teclas, 5 são pretas
             if ( Mathf.FloorToInt(qtdKeys * 5 / 12) == detectedCount)
             {
-                //detected = true;
+                detected = true;
                 Debug.Log("Quantidade Pretas: " + (Mathf.FloorToInt(qtdKeys * 5 / 12)).ToString());
             }
 
@@ -391,7 +393,7 @@ public class PhoneCamera : MonoBehaviour
 
             //Criar retangulo rotacionado
             MatOfPoint2f rRectAreaPoints = new MatOfPoint2f(blackKeysPoints);
-            RotatedRect rRectArea = Imgproc.minAreaRect(rRectAreaPoints);
+            rRectArea = Imgproc.minAreaRect(rRectAreaPoints);
 
             //Reposicionar VirtualPlane
             //Vector3 relativePosition = cameraTransform.InverseTransformDirection(virtualPlane.transform.position - cameraTransform.position);
@@ -411,6 +413,68 @@ public class PhoneCamera : MonoBehaviour
             //Aplicar transparência
             Core.addWeighted(roiExcluded, 0.50, cameraMat, 1.0, 1.0, cameraMat);
 
+            //Salvar Mat
+            if (detected) {
+                detectedMat = new Mat(cameraMat, new Range(0,cameraMat.rows()));
+            }
+
+        }
+        //-------------------------------
+        // Tracking com CamShift
+        //-------------------------------
+        else
+        {
+            Mat hsv_roi = new Mat();
+            Mat maskCam = new Mat();
+            Mat roi;
+
+            // set up the ROI for tracking
+            roi = new Mat(detectedMat, rRectArea.boundingRect());
+            Imgproc.cvtColor(roi, hsv_roi, Imgproc.COLOR_BGR2HSV);
+            Core.inRange(hsv_roi, new Scalar(0, 60, 32), new Scalar(180, 255, 255), maskCam);
+            MatOfFloat range = new MatOfFloat(0, 256);
+            Mat roi_hist = new Mat();
+            MatOfInt histSize = new MatOfInt(180);
+            MatOfInt channels = new MatOfInt(0);
+            List<Mat> listHsv_roi = new List<Mat>();
+            listHsv_roi.Add(hsv_roi);
+            Imgproc.calcHist(listHsv_roi, channels, maskCam, roi_hist, histSize, range);
+            Core.normalize(roi_hist, roi_hist, 0, 255, Core.NORM_MINMAX);
+
+            // Setup the termination criteria, either 10 iteration or move by atleast 1 pt
+            TermCriteria term_crit = new TermCriteria(TermCriteria.EPS | TermCriteria.COUNT, 10, 1);
+
+            Mat hsv = new Mat();
+            Mat dst = new Mat();
+            Imgproc.cvtColor(cameraMat, hsv, Imgproc.COLOR_BGR2HSV);
+            List<Mat> listHsv = new List<Mat>();
+            listHsv.Add(hsv);
+            Imgproc.calcBackProject(listHsv, channels, roi_hist, dst, range, 1);
+            // apply camshift to get the new location
+
+            //EDITED: Utilizei o imgROI no lugar do dst (calculado no calcBackProject), pois o imgROI contém a área de teclas em detecção já preparadas.
+            //PROBLEMA: o CamShift funciona pra movimentos do objeto na imagem, considerando a camera fixa. No nosso caso, a câmera deve se mover e o objeto sera fixo, então não serve.
+            RotatedRect rot_rect = Video.CamShift(dst, rRectArea.boundingRect(), term_crit);
+            // Draw it on image
+            Point[] points = new Point[4];
+            rot_rect.points(points);
+            for (int i = 0; i < 4; i++)
+            {
+                Imgproc.line(cameraMat, points[i], points[(i + 1) % 4], new Scalar(255, 0, 0), 2);
+            }
+
+            ////Exibir resultado do calcBackProject
+            //Mat mIntermediateMat = new Mat();
+            //Imgproc.resize(dst, mIntermediateMat, cameraMat.size(), 0, 0, Imgproc.INTER_LINEAR);
+            //Imgproc.cvtColor(mIntermediateMat, cameraMat, Imgproc.COLOR_GRAY2BGRA);
+
+            //Desenhar Retângulo rotacionado
+            //Point[] rRectPoints = new Point[4];
+            //List<MatOfPoint> rRectPointList = new List<MatOfPoint>();
+            //rectBlackKeysArea.points(rRectPoints);
+            //rRectPointList.Clear();
+            //rRectPointList.Add(new MatOfPoint(rRectPoints));
+            //Imgproc.drawContours(cameraMat, rRectPointList, 0, new Scalar(255, 0, 0), 1);
         }
 
         //-------------------------------
