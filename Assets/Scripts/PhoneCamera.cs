@@ -20,6 +20,12 @@ public class PhoneCamera : MonoBehaviour
 	private Texture defaultBackground;
     private float avgFrameRate;
     private bool detected;
+    private Mat detectedMat;
+
+    private float updateRateSeconds = 4.0F;
+    private int frameCount = 0;
+    private float dt = 0.0F;
+    private float fps = 0.0F;
 
     Mat cameraMat;
     Texture2D outputTexture;
@@ -363,7 +369,7 @@ public class PhoneCamera : MonoBehaviour
                 //rRect.points(vertices);
                 //boxContours.Clear();
                 //boxContours.Add(new MatOfPoint(vertices));
-                //Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 1);
+                //Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 4);
 
                 //Imprimir AspectRatio
                 //Imgproc.putText(cameraMat, " " + rrAR.ToString("0.##"), cCenter, Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
@@ -421,11 +427,14 @@ public class PhoneCamera : MonoBehaviour
                 //Salvar material usando retângulo como mascara
                 featureImage = cameraMat.submat(rectBlackKeysArea.boundingRect());
                 Imgcodecs.imwrite("featureImage.png", featureImage);
+                detectedMat = new Mat(cameraMat, new Range(0, cameraMat.rows()));
+
+                Mat feature = new Mat(detectedMat, rectBlackKeysArea.boundingRect());
 
                 //Detectar features com ORB
                 objectKeyPoints = new MatOfKeyPoint();
                 objectDescriptors = new Mat();
-                orb.detectAndCompute(featureImage, new Mat(), objectKeyPoints, objectDescriptors);
+                orb.detectAndCompute(feature, new Mat(), objectKeyPoints, objectDescriptors);
             }
 
             //Desenhar área das teclas pretas
@@ -440,17 +449,20 @@ public class PhoneCamera : MonoBehaviour
         {
             //Ler imagem salva
             featureImage = Imgcodecs.imread("featureImage.png");
+
+            Mat feature = new Mat(detectedMat, rectBlackKeysArea.boundingRect());
+
             //Detectar features com ORB
-            objectKeyPoints = new MatOfKeyPoint();
-            objectDescriptors = new Mat();
-            orb.detectAndCompute(featureImage, new Mat(), objectKeyPoints, objectDescriptors);
+            //objectKeyPoints = new MatOfKeyPoint();
+            //objectDescriptors = new Mat();
+            //orb.detectAndCompute(featureImage, new Mat(), objectKeyPoints, objectDescriptors);
 
             //Detectar features do frame
             MatOfKeyPoint frameKeyPoints = new MatOfKeyPoint();
             Mat frameDescriptors = new Mat();
             orb.detectAndCompute(cameraMat, new Mat(), frameKeyPoints, frameDescriptors);
-            //Features2d.drawKeypoints(cameraMat, frameKeyPoints, cameraMat, new Scalar(255, 0, 0), 0);
-
+            Features2d.drawKeypoints(cameraMat, frameKeyPoints, cameraMat, new Scalar(255, 255, 255), Features2d.DrawMatchesFlags_DRAW_RICH_KEYPOINTS);
+            
             //Match de features entre objeto detectado e frame
             BFMatcher matcher = new BFMatcher();
             //DescriptorMatcher matcher = DescriptorMatcher.create(DescriptorMatcher.BRUTEFORCE_HAMMINGLUT);
@@ -458,22 +470,29 @@ public class PhoneCamera : MonoBehaviour
             matcher.match(frameDescriptors, objectDescriptors, matchePoints);
 
             Mat dstMat = new Mat();
-            Features2d.drawMatches(featureImage, objectKeyPoints, cameraMat, frameKeyPoints, matchePoints, dstMat);
+            Features2d.drawMatches(feature, objectKeyPoints, cameraMat, frameKeyPoints, matchePoints, dstMat);
             DMatch[] matchArray =  matchePoints.toArray();
             //Tentar converter matches em pontos e imprimir contorno ou algo assim. ver o site do SIFT no Dummy, o cara faz isso
 
             Imgproc.resize(dstMat, cameraMat, cameraMat.size());
+            
         }
 
 
         //-------------------------------
         // FRAMERATE
         //-------------------------------
-        avgFrameRate = Time.frameCount / Time.time;
-        log.text = avgFrameRate.ToString() + "FPS";
+        frameCount++;
+        dt += Time.unscaledDeltaTime;
+        if (dt > 1.0 / updateRateSeconds)
+        {
+            fps = frameCount / dt;
+            frameCount = 0;
+            dt -= 1.0F / updateRateSeconds;
+        }
 
-
-        Imgproc.putText(cameraMat, " " + (avgFrameRate).ToString("0.##"), new Point(150, 15), Imgproc.FONT_HERSHEY_SIMPLEX, 1, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
+        //Imgproc.putText(cameraMat, " " + (avgFrameRate).ToString("0.##"), new Point(150, 15), Imgproc.FONT_HERSHEY_SIMPLEX, 1, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
+        log.text = "Res.:" + cameraMat.width().ToString() + " x " + cameraMat.height().ToString() + " FPS: " + (fps).ToString("0.##");
 
         //Imgproc.resize(imgROI, imgROI, cameraMat.size());
         //Imgproc.cvtColor(imgROI, cameraMat, Imgproc.COLOR_GRAY2RGB);
