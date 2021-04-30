@@ -7,6 +7,7 @@ using OpenCVForUnity.ImgprocModule;
 using OpenCVForUnity.UnityUtils;
 using System.Linq;
 using TMPro;
+using Tayx.Graphy;
 
 public class PhoneCamera : MonoBehaviour
 {
@@ -14,8 +15,12 @@ public class PhoneCamera : MonoBehaviour
 	private bool camAvailable;
 	private WebCamTexture cameraTexture;
 	private Texture defaultBackground;
-    private float avgFrameRate;
     private bool detected;
+
+    private float updateRateSeconds = 4.0F;
+    private int frameCount = 0;
+    private float dt = 0.0F;
+    private float fps = 0.0F;
 
     Mat cameraMat;
     Texture2D outputTexture;
@@ -190,7 +195,7 @@ public class PhoneCamera : MonoBehaviour
 
             //Converter em escala de cinza
             Mat gray = new Mat(Screen.height, Screen.width, CvType.CV_8UC4);
-            Imgproc.cvtColor(cameraMat, gray, Imgproc.COLOR_RGB2GRAY);
+            Imgproc.cvtColor(cameraMat, gray, Imgproc.COLOR_BGR2GRAY);
 
             //Calcular area do frame
             double frame_area = Screen.height * Screen.width;
@@ -307,7 +312,7 @@ public class PhoneCamera : MonoBehaviour
                     rRect.points(vertices);
                     boxContours.Clear();
                     boxContours.Add(new MatOfPoint(vertices));
-                    Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 3);
+                    Imgproc.drawContours(cameraMat, boxContours, 0, new Scalar(255, 0, 0), 6, Imgproc.LINE_AA);
 
                     //Setar pontos A,B,C e D
                     // D __ C
@@ -411,10 +416,17 @@ public class PhoneCamera : MonoBehaviour
         //-------------------------------
         // FRAMERATE
         //-------------------------------
-        avgFrameRate = Time.frameCount / Time.time;
+        frameCount++;
+        dt += Time.unscaledDeltaTime;
+        if (dt > 1.0 / updateRateSeconds)
+        {
+            fps = frameCount / dt;
+            frameCount = 0;
+            dt -= 1.0F / updateRateSeconds;
+        }
 
-
-        Imgproc.putText(cameraMat, " " + (avgFrameRate).ToString("0.##"), new Point(150, 15), Imgproc.FONT_HERSHEY_SIMPLEX, 1, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
+        //Imgproc.putText(cameraMat, " " + (avgFrameRate).ToString("0.##"), new Point(150, 15), Imgproc.FONT_HERSHEY_SIMPLEX, 1, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
+        log.text = "Res.:"+cameraMat.width().ToString()+" x "+ cameraMat.height().ToString() + " FPS: "+(fps).ToString("0.##");
 
         //Imgproc.resize(imgROI, imgROI, cameraMat.size());
         //Imgproc.cvtColor(imgROI, cameraMat, Imgproc.COLOR_GRAY2RGB);

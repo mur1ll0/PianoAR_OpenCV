@@ -619,7 +619,12 @@ PlayerSettings:
   webGLCompressionFormat: 1
   webGLLinkerTarget: 1
   webGLThreadsSupport: 0
-  scriptingDefineSymbols: {}
+  scriptingDefineSymbols:
+    1: OPENCV_USE_UNSAFE_CODE
+    4: OPENCV_USE_UNSAFE_CODE
+    7: OPENCV_USE_UNSAFE_CODE
+    13: OPENCV_USE_UNSAFE_CODE
+    14: OPENCV_USE_UNSAFE_CODE
   platformArchitecture: {}
   scriptingBackend: {}
   il2cppCompilerConfiguration: {}
