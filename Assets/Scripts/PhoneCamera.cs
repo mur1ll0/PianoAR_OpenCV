@@ -39,7 +39,10 @@ public class PhoneCamera : MonoBehaviour
 
     public RawImage background;
 	public AspectRatioFitter fit;
-	public bool frontFacing;
+    public int cameraWidth;
+    public int cameraHeight;
+    public int cameraFPS;
+    public bool frontFacing;
     public TextMeshProUGUI log;
     public GameObject plane;
 
@@ -81,8 +84,16 @@ public class PhoneCamera : MonoBehaviour
         if (cameraTexture == null)
             return;
 
+        //Configurações da câmera
+        if (cameraWidth != 0) cameraTexture.requestedWidth = cameraWidth;
+        if (cameraHeight != 0) cameraTexture.requestedHeight = cameraHeight;
+        if (cameraFPS != 0) cameraTexture.requestedFPS = cameraFPS;
+
         Debug.Log("Device connected: " + cameraTexture.deviceName);
-        //log.text = "Device connected: " + cameraTexture.deviceName;
+        log.text = "Device connected: " + cameraTexture.deviceName;
+        Debug.Log("Camera Width: " + cameraTexture.requestedWidth.ToString());
+        Debug.Log("Camera Height: " + cameraTexture.requestedHeight.ToString());
+        Debug.Log("Camera FPS: " + cameraTexture.requestedFPS.ToString());
 
         cameraTexture.Play(); // Start the camera
         background.texture = cameraTexture; // Set the texture
@@ -427,14 +438,14 @@ public class PhoneCamera : MonoBehaviour
                 //Salvar material usando retângulo como mascara
                 featureImage = cameraMat.submat(rectBlackKeysArea.boundingRect());
                 Imgcodecs.imwrite("featureImage.png", featureImage);
+                
                 detectedMat = new Mat(cameraMat, new Range(0, cameraMat.rows()));
-
                 Mat feature = new Mat(detectedMat, rectBlackKeysArea.boundingRect());
 
                 //Detectar features com ORB
-                objectKeyPoints = new MatOfKeyPoint();
-                objectDescriptors = new Mat();
-                orb.detectAndCompute(feature, new Mat(), objectKeyPoints, objectDescriptors);
+                //objectKeyPoints = new MatOfKeyPoint();
+                //objectDescriptors = new Mat();
+                //orb.detectAndCompute(featureImage, new Mat(), objectKeyPoints, objectDescriptors);
             }
 
             //Desenhar área das teclas pretas
@@ -447,22 +458,30 @@ public class PhoneCamera : MonoBehaviour
         //-------------------------------
         else
         {
+            //Frame redimensionado para 640x480 para obter melhor desempenho
+            Mat cameraMat640 = new Mat();
+            Imgproc.resize(cameraMat, cameraMat640, new Size(640.0, 480.0));
+
             //Ler imagem salva
             featureImage = Imgcodecs.imread("featureImage.png");
 
-            Mat feature = new Mat(detectedMat, rectBlackKeysArea.boundingRect());
+            //Mat feature = new Mat(detectedMat, rectBlackKeysArea.boundingRect());
 
             //Detectar features com ORB
-            //objectKeyPoints = new MatOfKeyPoint();
-            //objectDescriptors = new Mat();
-            //orb.detectAndCompute(featureImage, new Mat(), objectKeyPoints, objectDescriptors);
+            objectKeyPoints = new MatOfKeyPoint();
+            objectDescriptors = new Mat();
+            orb.detectAndCompute(featureImage, new Mat(), objectKeyPoints, objectDescriptors);
+            Features2d.drawKeypoints(featureImage, objectKeyPoints, featureImage, new Scalar(255, 255, 255), Features2d.DrawMatchesFlags_DRAW_RICH_KEYPOINTS);
+            Imgcodecs.imwrite("featureImageKEYS.png", featureImage);
+            //Imgproc.resize(featureImage, cameraMat, cameraMat.size());
 
             //Detectar features do frame
             MatOfKeyPoint frameKeyPoints = new MatOfKeyPoint();
             Mat frameDescriptors = new Mat();
-            orb.detectAndCompute(cameraMat, new Mat(), frameKeyPoints, frameDescriptors);
-            Features2d.drawKeypoints(cameraMat, frameKeyPoints, cameraMat, new Scalar(255, 255, 255), Features2d.DrawMatchesFlags_DRAW_RICH_KEYPOINTS);
-            
+            orb.detectAndCompute(cameraMat640, new Mat(), frameKeyPoints, frameDescriptors);
+            Features2d.drawKeypoints(cameraMat640, frameKeyPoints, cameraMat640, new Scalar(255, 255, 255), Features2d.DrawMatchesFlags_DRAW_RICH_KEYPOINTS);
+            Imgproc.resize(cameraMat640, cameraMat, cameraMat.size());
+            /*
             //Match de features entre objeto detectado e frame
             BFMatcher matcher = new BFMatcher();
             //DescriptorMatcher matcher = DescriptorMatcher.create(DescriptorMatcher.BRUTEFORCE_HAMMINGLUT);
@@ -470,12 +489,13 @@ public class PhoneCamera : MonoBehaviour
             matcher.match(frameDescriptors, objectDescriptors, matchePoints);
 
             Mat dstMat = new Mat();
-            Features2d.drawMatches(feature, objectKeyPoints, cameraMat, frameKeyPoints, matchePoints, dstMat);
+            Features2d.drawMatches(featureImage, objectKeyPoints, cameraMat640, frameKeyPoints, matchePoints, dstMat);
             DMatch[] matchArray =  matchePoints.toArray();
             //Tentar converter matches em pontos e imprimir contorno ou algo assim. ver o site do SIFT no Dummy, o cara faz isso
 
             Imgproc.resize(dstMat, cameraMat, cameraMat.size());
-            
+            */
+
         }
 
 

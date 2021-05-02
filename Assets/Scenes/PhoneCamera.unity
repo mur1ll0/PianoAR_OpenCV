@@ -694,6 +694,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   background: {fileID: 1782666235}
   fit: {fileID: 1782666234}
+  cameraWidth: 640
+  cameraHeight: 480
+  cameraFPS: 0
   frontFacing: 0
   log: {fileID: 1280634789}
   plane: {fileID: 526681786}
