@@ -210,7 +210,7 @@ public class PhoneCamera : MonoBehaviour
         //---------------------------------------------------
         outputTexture.SetPixels32(cameraTexture.GetPixels32());
         outputTexture.Apply();
-        Utils.texture2DToMat(outputTexture, cameraMat, false);
+        Utils.texture2DToMat(outputTexture, cameraMat, true);
 
 
         //Enquanto não tiver detectado
@@ -239,13 +239,13 @@ public class PhoneCamera : MonoBehaviour
             int detectedCount = 0;
             //Pontos máximos e mínimos da área detectada
             // D __ C
-            //  |  |
-            //  |__|
-            // A    B
-            Point A = new Point(cameraMat.width(), cameraMat.height());
-            Point B = new Point(0, cameraMat.height());
-            Point C = new Point(0, 0);
-            Point D = new Point(cameraMat.width(), 0);
+            //  |  | |
+            //  |__| \/
+            // A <- B
+            Point A = new Point(0, 0);
+            Point B = new Point(cameraMat.width(), 0);
+            Point C = new Point(cameraMat.width(), cameraMat.height());
+            Point D = new Point(0, cameraMat.height());
             //Vertices usados para retângulo rotacionado
             Point[] vertices = new Point[4];
             //Lista de contornos usada para drawContour
@@ -338,9 +338,9 @@ public class PhoneCamera : MonoBehaviour
 
                     //Setar pontos A,B,C e D
                     // D __ C
-                    //  |  |
-                    //  |__|
-                    // A    B
+                    //  |  | |
+                    //  |__| \/
+                    // A <- B
                     //Ordenar pontos primeiro por Y, depois por X usando System.Linq
                     List<Point> rrPoints = new List<Point>();
                     rrPoints = vertices.OrderBy(p => p.y).ThenBy(p => p.x).ToList<Point>();
@@ -356,19 +356,35 @@ public class PhoneCamera : MonoBehaviour
                     //Debug.Log(rrPoints[2].ToString());
                     //Debug.Log(rrPoints[3].ToString());
 
-                    if (rrPoints[0].x < A.x) A.x = rrPoints[0].x;
-                    if (rrPoints[0].y < A.y) A.y = rrPoints[0].y;
-                    if (rrPoints[1].x > B.x) B.x = rrPoints[1].x;
-                    if (rrPoints[1].y < B.y) B.y = rrPoints[1].y;
-                    if (rrPoints[3].x > C.x) C.x = rrPoints[3].x;
-                    if (rrPoints[3].y > C.y) C.y = rrPoints[3].y;
-                    if (rrPoints[2].x < D.x) D.x = rrPoints[2].x;
-                    if (rrPoints[2].y > D.y) D.y = rrPoints[2].y;
+                    if (rrPoints[0].x < C.x) C.x = rrPoints[0].x;
+                    if (rrPoints[0].y < C.y) C.y = rrPoints[0].y;
+                    if (rrPoints[1].x > D.x) D.x = rrPoints[1].x;
+                    if (rrPoints[1].y < D.y) D.y = rrPoints[1].y;
+                    if (rrPoints[3].x > A.x) A.x = rrPoints[3].x;
+                    if (rrPoints[3].y > A.y) A.y = rrPoints[3].y;
+                    if (rrPoints[2].x < B.x) B.x = rrPoints[2].x;
+                    if (rrPoints[2].y > B.y) B.y = rrPoints[2].y;
+
+                    //Considerar largura da tecla para pontos C e B
+                    if (Mathf.Abs((float)rRect.angle) > 45)
+                    {
+                        if ((rrPoints[2].x - rRect.size.height) < B.x) B.x = rrPoints[2].x - rRect.size.height;
+                        if ((rrPoints[0].x - rRect.size.height) < C.x) C.x = rrPoints[0].x - rRect.size.height;
+                        //B.x -= rRect.size.height;
+                        //C.x -= rRect.size.height;
+                    }
+                    else
+                    {
+                        if ((rrPoints[2].x - rRect.size.width) < B.x) B.x = rrPoints[2].x - rRect.size.width;
+                        if ((rrPoints[0].x - rRect.size.width) < C.x) C.x = rrPoints[0].x - rRect.size.width;
+                        //B.x -= rRect.size.width;
+                        //C.x -= rRect.size.width;
+                    }
+                        
 
                     //Incrementar contador de selecionados/detectados
                     detectedCount++;
                 }
-
 
                 //Desenhar circulo
                 //Imgproc.circle(cameraMat, cCenter, (int)cRadius[0], new Scalar(0, 0, 255), 2);
@@ -396,6 +412,39 @@ public class PhoneCamera : MonoBehaviour
                 detected = true;
                 Debug.Log("Quantidade Pretas: " + (Mathf.FloorToInt(qtdKeys * 5 / 12)).ToString());
             }
+
+            //-----------------------------------------------------
+            // Ampliar área de teclas pretas para as teclas brancas
+            //-----------------------------------------------------
+            //A área de teclas pretas está localizada entre 11/5 de teclas brancas
+            //Na esquerda esta entre meia tecla branca
+            //Na direita esta entre 1 tecla branca e meia
+            //A altura da tecla preta é 9cm, e da tecla branca 14cm, aumenta 55,556%
+            //1. Calcular a distancia no eixo Y de D-A e C-B
+            double distY_DA = A.y - D.y;
+            double distY_CB = B.y - C.y;
+            //2. Encontrar quanto é 55,556% da distância
+            distY_DA = 55.556 * distY_DA / 100.0;
+            distY_CB = 55.556 * distY_CB / 100.0;
+            //3. Somar dos pontos inferiores o valor da distancia (pois para baixo o valor de pixels é menor)
+            A.y += distY_DA;
+            B.y += distY_CB;
+            //4. Calcular quantidade de teclas menos 11/5 de teclas brancas e por regra de três determinar distancia X aplicada para a qtd de teclas
+            double distX_DC = D.x - C.x;
+            double distX_AB = A.x - B.x;
+            double newDistX_DC = qtdKeys * distX_DC / ((double)qtdKeys - (11/5));
+            double newDistX_AB = qtdKeys * distX_AB / ((double)qtdKeys - (11/5));
+            //5. Calcular quanto % a nova distância aumenta e atribuir o tamanho real de aumento na variavel
+            double percX_DC = (100 * newDistX_DC / distX_DC) - 100.0;
+            double percX_AB = (100 * newDistX_AB / distX_AB) - 100.0;
+            newDistX_DC *= percX_DC / 100.0;
+            newDistX_AB *= percX_AB / 100.0;
+            //6. Somar 8/5 da nova distancia nos pontos a esquerda
+            D.x += (8 * newDistX_DC / 5);
+            A.x += (8 * newDistX_AB / 5);
+            //7. Subtrair 3/5 da nova distância nos pontos a direita
+            C.x -= (3 * newDistX_DC / 5);
+            B.x -= (3 * newDistX_AB / 5);
 
             //-------------------------------
             // Definir área das teclas pretas
@@ -437,6 +486,7 @@ public class PhoneCamera : MonoBehaviour
             {
                 //Salvar material usando retângulo como mascara
                 featureImage = cameraMat.submat(rectBlackKeysArea.boundingRect());
+
                 Imgcodecs.imwrite("featureImage.png", featureImage);
                 
                 detectedMat = new Mat(cameraMat, new Range(0, cameraMat.rows()));
@@ -521,7 +571,7 @@ public class PhoneCamera : MonoBehaviour
         //-------------------------------------------------------
         //Converter MAT do OpenCV para textura mapeada na câmera
         //------------------------------------------------------
-        Utils.matToTexture2D(cameraMat, outputTexture, false);
+        Utils.matToTexture2D(cameraMat, outputTexture, true);
 
     }
 }
