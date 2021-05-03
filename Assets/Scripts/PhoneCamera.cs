@@ -8,6 +8,7 @@ using OpenCVForUnity.UnityUtils;
 using OpenCVForUnity.VideoModule;
 using OpenCVForUnity.Features2dModule;
 using OpenCVForUnity.ImgcodecsModule;
+using OpenCVForUnity.Calib3dModule;
 using System.Linq;
 using TMPro;
 
@@ -509,11 +510,11 @@ public class PhoneCamera : MonoBehaviour
         else
         {
             //Frame redimensionado para 640x480 para obter melhor desempenho
-            Mat cameraMat640 = new Mat();
-            Imgproc.resize(cameraMat, cameraMat640, new Size(640.0, 480.0));
+            //Mat cameraMat640 = new Mat();
+            //Imgproc.resize(cameraMat, cameraMat640, new Size(640.0, 480.0));
 
             //Ler imagem salva
-            featureImage = Imgcodecs.imread("featureImage.png");
+            featureImage = Imgcodecs.imread("featureImage.png", Imgcodecs.IMREAD_COLOR);
 
             //Mat feature = new Mat(detectedMat, rectBlackKeysArea.boundingRect());
 
@@ -521,31 +522,116 @@ public class PhoneCamera : MonoBehaviour
             objectKeyPoints = new MatOfKeyPoint();
             objectDescriptors = new Mat();
             orb.detectAndCompute(featureImage, new Mat(), objectKeyPoints, objectDescriptors);
-            Features2d.drawKeypoints(featureImage, objectKeyPoints, featureImage, new Scalar(255, 255, 255), Features2d.DrawMatchesFlags_DRAW_RICH_KEYPOINTS);
-            Imgcodecs.imwrite("featureImageKEYS.png", featureImage);
+            //Features2d.drawKeypoints(featureImage, objectKeyPoints, featureImage, new Scalar(255, 255, 255), Features2d.DrawMatchesFlags_DRAW_RICH_KEYPOINTS);
+            //Imgcodecs.imwrite("featureImageKEYS.png", featureImage);
             //Imgproc.resize(featureImage, cameraMat, cameraMat.size());
 
             //Detectar features do frame
             MatOfKeyPoint frameKeyPoints = new MatOfKeyPoint();
             Mat frameDescriptors = new Mat();
-            orb.detectAndCompute(cameraMat640, new Mat(), frameKeyPoints, frameDescriptors);
-            Features2d.drawKeypoints(cameraMat640, frameKeyPoints, cameraMat640, new Scalar(255, 255, 255), Features2d.DrawMatchesFlags_DRAW_RICH_KEYPOINTS);
-            Imgproc.resize(cameraMat640, cameraMat, cameraMat.size());
-            /*
+            orb.detectAndCompute(cameraMat, new Mat(), frameKeyPoints, frameDescriptors);
+            //Features2d.drawKeypoints(cameraMat640, frameKeyPoints, cameraMat640, new Scalar(255, 255, 255), Features2d.DrawMatchesFlags_DRAW_RICH_KEYPOINTS);
+            //Imgproc.resize(cameraMat640, cameraMat, cameraMat.size());
+
+
             //Match de features entre objeto detectado e frame
-            BFMatcher matcher = new BFMatcher();
-            //DescriptorMatcher matcher = DescriptorMatcher.create(DescriptorMatcher.BRUTEFORCE_HAMMINGLUT);
+            //BFMatcher matcher = new BFMatcher();
+            DescriptorMatcher matcher = DescriptorMatcher.create(DescriptorMatcher.BRUTEFORCE_HAMMINGLUT);
+            //DescriptorMatcher matcher = DescriptorMatcher.create(DescriptorMatcher.FLANNBASED);
             MatOfDMatch matchePoints = new MatOfDMatch();
             matcher.match(frameDescriptors, objectDescriptors, matchePoints);
 
-            Mat dstMat = new Mat();
-            Features2d.drawMatches(featureImage, objectKeyPoints, cameraMat640, frameKeyPoints, matchePoints, dstMat);
-            DMatch[] matchArray =  matchePoints.toArray();
-            //Tentar converter matches em pontos e imprimir contorno ou algo assim. ver o site do SIFT no Dummy, o cara faz isso
+            //Separar apenas as melhores features
+            DMatch[] matchArray = matchePoints.toArray();
+            double max_dist = 0; double min_dist = 1000;
+            double sumDist = 0;
+            //-- Quick calculation of max and min distances between keypoints
+            for (int i = 0; i < matchArray.Length-1; i++)
+            {
+                double dist = matchArray[i].distance;
+                if (dist < min_dist) min_dist = dist;
+                if (dist > max_dist) max_dist = dist;
+                sumDist += dist;
+            }
+            //-- Draw only "good" matches (i.e. whose distance is less than 2*min_dist )
+            //-- PS.- radiusMatch can also be used here.
+            double medianDist = sumDist / (matchArray.Length - 1);
+            List<DMatch> goodMatchesList = new List<DMatch>();
 
+            for (int i = 0; i < matchArray.Length - 1; i++)
+            {
+                //if (matchArray[i].distance < 2 * min_dist)
+                if (matchArray[i].distance > (medianDist-min_dist) && matchArray[i].distance < (medianDist+min_dist) )
+                {
+                    goodMatchesList.Add(matchArray[i]);
+                }
+            }
+
+            /*
+            Mat dstMat = new Mat();
+            MatOfDMatch matchePoints2 = new MatOfDMatch(goodMatchesList.ToArray());
+            Features2d.drawMatches(featureImage, objectKeyPoints, cameraMat, frameKeyPoints, matchePoints2, dstMat, Scalar.all(-1), Scalar.all(-1), new MatOfByte(), Features2d.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS);
             Imgproc.resize(dstMat, cameraMat, cameraMat.size());
             */
 
+
+            //Se encontrou bons pontos
+            if (true && goodMatchesList.Count > 7)
+            {
+
+                //Criar pontos a partir das boas features
+                List<KeyPoint> objKeypointlist = objectKeyPoints.toList();
+                List<KeyPoint> scnKeypointlist = frameKeyPoints.toList();
+
+                List<Point> objectPoints = new List<Point>();
+                List<Point> framePoints = new List<Point>();
+
+                for (int i = 0; i < goodMatchesList.Count; i++)
+                {
+                    if ((goodMatchesList[i].queryIdx >= 0 && goodMatchesList[i].queryIdx < objKeypointlist.Count) &&
+                        (goodMatchesList[i].trainIdx >= 0 && goodMatchesList[i].trainIdx < scnKeypointlist.Count))
+                    {
+                        objectPoints.Add(objKeypointlist[goodMatchesList[i].queryIdx].pt);
+                        framePoints.Add(scnKeypointlist[goodMatchesList[i].trainIdx].pt);
+                    }
+                }
+
+                //Encontrar homografia do frame em ralação à imagem de referência
+                MatOfPoint2f objMatOfPoint2f = new MatOfPoint2f();
+                objMatOfPoint2f.fromList(objectPoints);
+                MatOfPoint2f scnMatOfPoint2f = new MatOfPoint2f();
+                scnMatOfPoint2f.fromList(framePoints);
+
+                //Calcular homografia
+                Mat homography = Calib3d.findHomography(objMatOfPoint2f, scnMatOfPoint2f, Calib3d.RANSAC, 3);
+
+                Mat obj_corners = new Mat(4, 1, CvType.CV_32FC2);
+                Mat frame_corners = new Mat(4, 1, CvType.CV_32FC2);
+
+                
+                obj_corners.put(0, 0, new double[] { 0, 0 });
+                obj_corners.put(1, 0, new double[] { featureImage.cols(), 0 });
+                obj_corners.put(2, 0, new double[] { featureImage.cols(), featureImage.rows() });
+                obj_corners.put(3, 0, new double[] { 0, featureImage.rows() });
+
+                //Transformar cantos do objeto em cantos do frame, usando transformação de perspectiva
+                Core.perspectiveTransform(obj_corners, frame_corners, homography);
+                
+                Imgproc.line(cameraMat, new Point(frame_corners.get(0, 0)), new Point(frame_corners.get(1, 0)), new Scalar(0, 255, 0), 4);
+                Imgproc.line(cameraMat, new Point(frame_corners.get(1, 0)), new Point(frame_corners.get(2, 0)), new Scalar(0, 255, 0), 4);
+                Imgproc.line(cameraMat, new Point(frame_corners.get(2, 0)), new Point(frame_corners.get(3, 0)), new Scalar(0, 255, 0), 4);
+                Imgproc.line(cameraMat, new Point(frame_corners.get(3, 0)), new Point(frame_corners.get(0, 0)), new Scalar(0, 255, 0), 4);
+                
+
+                /*
+                //obj_corners.put(0, 0, 0.0, 0.0, featureImage.cols(), 0.0, 0.0, featureImage.rows(), featureImage.cols(), featureImage.rows());
+                //frame_corners.put(0, 0, 0.0, 0.0, featureImage.cols(), 200.0, 0.0, featureImage.rows(), featureImage.cols(), featureImage.rows() - 200.0);
+                Mat perspectiveTransform = Imgproc.getPerspectiveTransform(obj_corners, frame_corners);
+
+                Imgproc.warpPerspective(featureImage, cameraMat, perspectiveTransform, new Size(cameraMat.cols(), cameraMat.rows()));
+                */
+            }
+            //Imgproc.resize(cameraMat640, cameraMat, cameraMat.size());
         }
 
 
