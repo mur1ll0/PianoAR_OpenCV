@@ -31,7 +31,10 @@ public class PhoneCamera : MonoBehaviour
 
     public RawImage background;
 	public AspectRatioFitter fit;
-	public bool frontFacing;
+    public int cameraWidth;
+    public int cameraHeight;
+    public int cameraFPS;
+    public bool frontFacing;
     public TextMeshProUGUI log;
     public GameObject virtualPlane;
     public Transform cameraTransform;
@@ -74,8 +77,16 @@ public class PhoneCamera : MonoBehaviour
         if (cameraTexture == null)
             return;
 
+        //Configurações da câmera
+        if (cameraWidth != 0) cameraTexture.requestedWidth = cameraWidth;
+        if (cameraHeight != 0) cameraTexture.requestedHeight = cameraHeight;
+        if (cameraFPS != 0) cameraTexture.requestedFPS = cameraFPS;
+
         Debug.Log("Device connected: " + cameraTexture.deviceName);
         log.text = "Device connected: " + cameraTexture.deviceName;
+        Debug.Log("Camera Width: " + cameraTexture.requestedWidth.ToString());
+        Debug.Log("Camera Height: " + cameraTexture.requestedHeight.ToString());
+        Debug.Log("Camera FPS: " + cameraTexture.requestedFPS.ToString());
 
         cameraTexture.Play(); // Start the camera
         background.texture = cameraTexture; // Set the texture
