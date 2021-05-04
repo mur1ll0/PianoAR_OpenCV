@@ -22,12 +22,15 @@ public class PhoneCamera : MonoBehaviour
     private float avgFrameRate;
     private bool detected;
     private Mat detectedMat;
+    private bool viewThresh;
+    private Mat th;
 
     private float updateRateSeconds = 4.0F;
     private int frameCount = 0;
     private float dt = 0.0F;
     private float fps = 0.0F;
 
+    WebCamDevice[] devices;
     Mat cameraMat;
     Texture2D outputTexture;
     Texture2D maskROITex2D;
@@ -44,11 +47,106 @@ public class PhoneCamera : MonoBehaviour
     public int cameraHeight;
     public int cameraFPS;
     public bool frontFacing;
+    public int camIndex;
     public TextMeshProUGUI log;
     public GameObject plane;
 
     //Parametros
     public int qtdKeys;
+
+    //Função para trocar câmera ao clicar no botão
+    public void ChangeCamera()
+    {
+        //Parar camera se estive rodando
+        if (cameraTexture.isPlaying) cameraTexture.Stop();
+
+        //Incrementar câmera
+        if (camIndex >= devices.Length - 1)
+        {
+            camIndex = 0;
+        }
+        else
+        {
+            camIndex++;
+        }
+        //Reiniciar código
+        Start();
+    }
+
+    //Função para mudar resolução ao clicar
+    public void ChangeResolution()
+    {
+        //Parar camera se estive rodando
+        if (cameraTexture.isPlaying) cameraTexture.Stop();
+
+        //Trocar resoluções
+        if (cameraWidth == 640 && cameraHeight == 480)
+        {
+            cameraWidth = 720;
+            cameraHeight = 540;
+        }
+        else if (cameraWidth == 720 && cameraHeight == 540)
+        {
+            cameraWidth = 960;
+            cameraHeight = 540;
+        }
+        else if (cameraWidth == 960 && cameraHeight == 540)
+        {
+            cameraWidth = 1280;
+            cameraHeight = 960;
+        }
+        else if (cameraWidth == 1280 && cameraHeight == 960)
+        {
+            cameraWidth = 1920;
+            cameraHeight = 1080;
+        }
+        else if (cameraWidth == 1920 && cameraHeight == 1080)
+        {
+            cameraWidth = 2336;
+            cameraHeight = 1080;
+        }
+        else if (cameraWidth == 2336 && cameraHeight == 1080)
+        {
+            cameraWidth = 640;
+            cameraHeight = 480;
+        }
+        else{
+            cameraWidth = 640;
+            cameraHeight = 480;
+        }
+
+        Debug.Log("Resolução alterada para: " + cameraWidth.ToString() + "x" + cameraHeight.ToString());
+
+        //Reiniciar código
+        Start();
+    }
+
+    //Botão para tirar foto e setar detected para true
+    public void Photo()
+    {
+        //Salvar material usando retângulo como mascara
+        double roiSize = cameraMat.width() / 6;
+        OpenCVForUnity.CoreModule.Rect roiRect = new OpenCVForUnity.CoreModule.Rect(0, (int)((cameraMat.height() / 2) - roiSize / 2), cameraMat.width(), (int)(roiSize));
+        Mat mask = new Mat(cameraMat.rows(), cameraMat.cols(), CvType.CV_8U, Scalar.all(0));
+        Imgproc.rectangle(mask, roiRect, Scalar.all(255), Imgproc.FILLED);
+        featureImage = new Mat();
+        cameraMat.copyTo(featureImage, mask);
+        Imgcodecs.imwrite("featureImage.png", featureImage);
+        //Marca detected como true
+        detected = true;
+
+        Debug.Log("Detecção com Foto: Detected="+detected.ToString());
+
+        //Update();
+    }
+
+    //Botão para alternar visualização entre Threshold e Imagem da Camera
+    public void ThreshCamView()
+    {
+        if (viewThresh) viewThresh = false;
+        else viewThresh = true;
+    }
+
 
     // Use this for initialization
     void Start()
@@ -56,12 +154,18 @@ public class PhoneCamera : MonoBehaviour
         //Estado inicial da detcção
         detected = false;
 
+        //Váriavel para dizer se vai ver o thresold ou imagem da camera
+        viewThresh = false;
+
         // Make the game run as fast as possible
         Application.targetFrameRate = 300;
         QualitySettings.vSyncCount = 0;
 
+        //Configurar tela para nunca pagar (para Android)
+        Screen.sleepTimeout = SleepTimeout.NeverSleep;
+
         defaultBackground = background.texture;
-		WebCamDevice[] devices = WebCamTexture.devices;
+		devices = WebCamTexture.devices;
 
 		if (devices.Length == 0)
 			return;
@@ -79,7 +183,7 @@ public class PhoneCamera : MonoBehaviour
 			}
 		}*/
 
-        var curr = devices[0];
+        var curr = devices[camIndex];
         cameraTexture = new WebCamTexture(curr.name, Screen.width, Screen.height);
 
         if (cameraTexture == null)
@@ -225,13 +329,13 @@ public class PhoneCamera : MonoBehaviour
             double frame_area = Screen.height * Screen.width;
 
             //Threshold binário
-            Mat th = new Mat();
+            th = new Mat();
             Mat kernel = new Mat(5, 5, CvType.CV_8U, new Scalar(255));
             Mat blur = new Mat();
             Imgproc.GaussianBlur(gray, blur, new Size(9, 9), 3);
             Imgproc.threshold(blur, th, 80, 255, Imgproc.THRESH_BINARY_INV);
             Imgproc.erode(th, th, kernel, new Point(), 1);
-            //Imgproc.dilate(brancas, brancas, kernel, new Point(), 1);
+            Imgproc.dilate(th, th, kernel, new Point(), 1);
 
             //--------------------------------
             // DECLARAÇÕES
@@ -404,7 +508,7 @@ public class PhoneCamera : MonoBehaviour
 
             }
 
-            Debug.Log("Teclas detectadas: " + detectedCount.ToString());
+            //Debug.Log("Teclas detectadas: " + detectedCount.ToString());
 
             //Comparar quantidade de teclas detectadas com qtdKeys
             //A cada 12 teclas, 5 são pretas
@@ -648,7 +752,10 @@ public class PhoneCamera : MonoBehaviour
         }
 
         //Imgproc.putText(cameraMat, " " + (avgFrameRate).ToString("0.##"), new Point(150, 15), Imgproc.FONT_HERSHEY_SIMPLEX, 1, new Scalar(255, 0, 0), 1, Imgproc.LINE_AA, true);
-        log.text = "Res.:" + cameraMat.width().ToString() + " x " + cameraMat.height().ToString() + " FPS: " + (fps).ToString("0.##");
+        log.text = "Detected:"+detected.ToString()+" Cam "+camIndex.ToString()+" Res.:" + cameraMat.width().ToString() + " x " + cameraMat.height().ToString() + " FPS: " + (fps).ToString("0.##");
+
+        //Se ver threshold estiver ativo
+        if (viewThresh && !detected) Imgproc.cvtColor(th, cameraMat, Imgproc.COLOR_GRAY2RGB);
 
         //Imgproc.resize(imgROI, imgROI, cameraMat.size());
         //Imgproc.cvtColor(imgROI, cameraMat, Imgproc.COLOR_GRAY2RGB);
